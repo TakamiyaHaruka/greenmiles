@@ -108,7 +108,7 @@ src/
 
 本项目从需求到落地全流程使用 **BMad Method v6.7.1** 与 AI Agent 协作完成：产品简介 → PRD（含 19 条决策日志）→ 架构设计 → UX 设计 → Epics & Stories → 逐 Story 实现。
 
-全部规划与实现产出物见 [`docs/bmad/`](docs/bmad/)，完整复盘文章见 [`docs/zh-CN/`](docs/zh-CN/)。
+逐 Story 实现记录见 [`docs/bmad/`](docs/bmad/)，完整复盘文章见 [`docs/zh-CN/`](docs/zh-CN/)。
 
 ## 参与贡献
 

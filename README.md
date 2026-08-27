@@ -108,7 +108,7 @@ src/
 
 This project was planned and built end-to-end with the **BMad Method v6.7.1** workflow and AI agents: product brief → PRD (19 logged decisions) → architecture → UX design → epics & stories → implementation, with each story tracked to completion.
 
-All planning and implementation artifacts are in [`docs/bmad/`](docs/bmad/), and a full write-up (in Chinese) lives in [`docs/zh-CN/`](docs/zh-CN/).
+Per-story implementation artifacts are in [`docs/bmad/`](docs/bmad/), and a full write-up (in Chinese) lives in [`docs/zh-CN/`](docs/zh-CN/).
 
 ## Contributing
 

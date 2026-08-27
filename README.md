@@ -3,6 +3,7 @@
 **An airline green-miles eco-mall demo — see your flight's carbon footprint, then put idle miles to work for the planet.**
 
 [![CI](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml/badge.svg)](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml)
+[![E2E: Playwright](https://img.shields.io/badge/E2E-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
@@ -66,6 +67,8 @@ Open <http://localhost:3000>. The SQLite database (`greenmiles.db`) is created a
 | `npm run build` | Production build |
 | `npm start` | Start production server |
 | `npm test` | Run unit tests (Vitest) |
+| `npm run test:coverage` | Unit tests with coverage report |
+| `npm run test:e2e` | Run Playwright E2E journeys — builds the app, resets an isolated SQLite db and starts it on `:3100` |
 | `npm run lint` | ESLint |
 
 ## Carbon calculation
@@ -82,6 +85,11 @@ CO₂ (kg) = distance (km) × aircraft coefficient (kg/km) × cabin multiplier
 | Wide-body large | 0.140 | | First | ×4.0 |
 
 These are simplified illustrative factors for demo purposes, not an official methodology. See [`src/lib/carbon.ts`](src/lib/carbon.ts).
+
+## Testing
+
+- **Unit (Vitest + Testing Library)** — 108 tests covering the carbon engine, auth helpers, Zod schemas, API route handlers and Zustand stores. `npm test`
+- **E2E (Playwright)** — 6 journeys against a production build with an isolated, freshly seeded SQLite database: register & login, carbon calculator result, miles redemption with voucher QR code, order history, unauthenticated route guard, and the insufficient-balance settlement guard. First run needs `npx playwright install chromium`, then `npm run test:e2e`
 
 ## Project structure
 

@@ -18,9 +18,11 @@ Test account: `test@greenmiles.com` / `password123`.
 ## Before you open a PR
 
 ```bash
-npm run lint   # must pass
-npm test       # must pass
-npm run build  # must succeed
+npm run lint        # must pass
+npm test            # must pass
+npm run build       # must succeed
+npm run test:e2e    # must pass if you touched pages/API/flows
+                    # (first time: npx playwright install chromium)
 ```
 
 Please add or update tests when you change business logic

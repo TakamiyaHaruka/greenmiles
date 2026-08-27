@@ -3,6 +3,7 @@
 **航司绿色里程生态商城 Demo —— 让飞行碳足迹可见，让闲置里程变绿。**
 
 [![CI](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml/badge.svg)](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml)
+[![E2E: Playwright](https://img.shields.io/badge/E2E-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
@@ -66,6 +67,8 @@ npm run dev
 | `npm run build` | 生产构建 |
 | `npm start` | 启动生产服务器 |
 | `npm test` | 运行单元测试（Vitest） |
+| `npm run test:coverage` | 单元测试 + 覆盖率报告 |
+| `npm run test:e2e` | 运行 Playwright E2E 旅程 —— 自动构建、重置隔离 SQLite 库并在 `:3100` 启动 |
 | `npm run lint` | ESLint 检查 |
 
 ## 碳排放计算方法
@@ -82,6 +85,11 @@ CO₂ (kg) = 航距 (km) × 机型系数 (kg/km) × 舱位权重
 | 宽体大型机型 | 0.140 | | 头等舱 | ×4.0 |
 
 以上为演示用的简化系数，并非官方核算方法。完整实现见 [`src/lib/carbon.ts`](src/lib/carbon.ts)。
+
+## 测试
+
+- **单元测试（Vitest + Testing Library）**—— 108 条用例，覆盖碳排放引擎、认证工具、Zod 校验、API 路由和 Zustand store。`npm test`
+- **E2E（Playwright）**—— 6 条旅程，跑在独立、每次全新种子的 SQLite 数据库上：注册登录、碳排放计算、里程兑换含凭证二维码、订单历史、未登录路由守卫、余额不足结算守卫。首次运行先 `npx playwright install chromium`，然后 `npm run test:e2e`
 
 ## 项目结构
 

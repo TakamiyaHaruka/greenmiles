@@ -1,0 +1,63 @@
+# generated: 2026-05-27
+# last_updated: 2026-05-27
+# project: GreenMiles
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-05-27
+last_updated: 2026-05-27T15:00:00
+project: GreenMiles
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: 项目基础设施与用户认证
+  epic-1: done
+  1-1-project-init-and-design-system: done
+  1-2-database-and-seed-data: done
+  1-3-user-registration: done
+  1-4-user-login-and-auth: done
+  1-5-navbar-and-miles-balance: done
+  epic-1-retrospective: optional
+
+  # Epic 2: 碳排放计算工具
+  epic-2: done
+  2-1-carbon-calculation-engine: done
+  2-2-carbon-calculator-ui: done
+  2-3-context-banner: done
+  epic-2-retrospective: optional
+
+  # Epic 3: 绿色商城与兑换流程
+  epic-3: done
+  3-1-product-list-page: done
+  3-2-product-detail-sheet: done
+  3-3-cart-dialog: done
+  3-4-mileage-settlement-and-voucher: done
+  3-5-product-and-order-api: done
+  epic-3-retrospective: optional
+
+  # Epic 4: 会员控制台与数据看板
+  epic-4: done
+  4-1-order-history-page: done
+  4-2-dashboard-and-kpi: done
+  epic-4-retrospective: optional

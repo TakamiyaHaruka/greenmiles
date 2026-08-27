@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GreenMiles ✈️🌱
 
-## Getting Started
+**An airline green-miles eco-mall demo — see your flight's carbon footprint, then put idle miles to work for the planet.**
 
-First, run the development server:
+[![CI](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml/badge.svg)](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+> [!NOTE]
+> GreenMiles is a **demo / proof of concept**. It runs locally, uses seeded data, and does not connect to real payments, real airlines, or real user accounts. The UI is currently in Chinese.
+
+## The idea
+
+Airline frequent-flyer miles have two well-known problems:
+
+- **Idle small balances** — redeeming a ticket takes far more miles than most people have, so balances sit unused.
+- **Carbon awareness without action** — travelers increasingly care about their footprint, but lack a tool that turns awareness into something concrete.
+
+GreenMiles explores one answer: a small eco-mall where a flight's carbon emission becomes visible, and idle miles become green products and carbon offsets.
+
+The core experience journey: **Reveal** (see the emission) → **Offset** (take action with miles) → **Proof** (carry a voucher as proof of action).
+
+## Features
+
+- 🔐 **Auth** — register / login with JWT (httpOnly cookie) and bcrypt password hashing
+- 🧮 **Carbon calculator** — enter distance, aircraft type and cabin class, get CO₂ plus a relatable analogy ("a tree's X days of absorption")
+- 🛒 **Miles mall** — 4 product types (physical goods, vouchers, carbon offsets, donations) with stock, cart dialog, and mileage settlement
+- 🎫 **Voucher proof** — each redemption produces a voucher code with QR code
+- 📊 **Order history & dashboard** — past orders and KPI overview
+- 🗄️ **Zero-config SQLite** — database is created, migrated and seeded automatically on first run
+
+## Tech stack
+
+Next.js 16 · React 19 · Tailwind CSS 4 · shadcn/ui · SQLite (better-sqlite3) · Zustand · Zod · JWT (jose) · Vitest · Testing Library
+
+## Quick start
+
+Prerequisites: **Node.js 20+** and npm.
 
 ```bash
+# 1. Clone
+git clone https://github.com/TakamiyaHaruka/greenmiles.git
+cd greenmiles
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.local.example .env.local
+# edit .env.local and set JWT_SECRET (e.g. `openssl rand -base64 32`)
+
+# 4. Run
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000>. The SQLite database (`greenmiles.db`) is created and seeded on first run — no migration step needed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Test account:** `test@greenmiles.com` / `password123` (10,000 miles balance)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Scripts
 
-## Learn More
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start dev server on <http://localhost:3000> |
+| `npm run build` | Production build |
+| `npm start` | Start production server |
+| `npm test` | Run unit tests (Vitest) |
+| `npm run lint` | ESLint |
 
-To learn more about Next.js, take a look at the following resources:
+## Carbon calculation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+CO₂ (kg) = distance (km) × aircraft coefficient (kg/km) × cabin multiplier
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Aircraft type | Coefficient (kg CO₂/km) | | Cabin | Multiplier |
+| --- | --- | --- | --- | --- |
+| Narrow-body efficient | 0.075 | | Economy | ×1.0 |
+| Narrow-body standard | 0.090 | | Premium economy | ×1.5 |
+| Wide-body efficient | 0.110 | | Business | ×2.5 |
+| Wide-body large | 0.140 | | First | ×4.0 |
 
-## Deploy on Vercel
+These are simplified illustrative factors for demo purposes, not an official methodology. See [`src/lib/carbon.ts`](src/lib/carbon.ts).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── (pages)/        # home, calculator, mall, orders, login, register
+│   └── api/            # auth, products, orders, user route handlers
+├── components/         # feature components + shadcn/ui primitives
+├── lib/                # db, auth, carbon engine, zod schemas
+├── stores/             # zustand stores (user, cart, carbon)
+└── middleware.ts       # JWT route protection
+```
+
+## Built with AI agents 🤖
+
+This project was planned and built end-to-end with the **BMad Method v6.7.1** workflow and AI agents: product brief → PRD (19 logged decisions) → architecture → UX design → epics & stories → implementation, with each story tracked to completion.
+
+All planning and implementation artifacts are in [`docs/bmad/`](docs/bmad/), and a full write-up (in Chinese) lives in [`docs/zh-CN/`](docs/zh-CN/).
+
+## Contributing
+
+Issues and pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Released under the [MIT License](LICENSE).

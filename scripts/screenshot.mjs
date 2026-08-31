@@ -52,15 +52,22 @@ async function main() {
   const login = await page.request.post(`${BASE}/api/auth/login`, { data: { email, password } });
   if (!login.ok()) throw new Error(`member login failed: ${login.status()}`);
 
-  // Seed demo activity so the dashboard charts show real numbers
-  await page.request.post(`${BASE}/api/carbon`, { data: { distance: 1075, aircraftType: 'NARROW_STANDARD', cabinClass: 'Y' } });
-  await page.request.post(`${BASE}/api/carbon`, { data: { distance: 1888, aircraftType: 'WIDE_EFFICIENT', cabinClass: 'C' } });
-  await page.request.post(`${BASE}/api/orders`, { data: { productId: 3, quantity: 1 } });
-  await page.request.post(`${BASE}/api/orders`, { data: { productId: 1, quantity: 1 } });
-  await page.request.post(`${BASE}/api/orders`, { data: { productId: 2, quantity: 1 } });
-  await page.request.post(`${BASE}/api/orders`, {
-    data: { productId: 4, quantity: 1, address: '林青，13800138000，北京市朝阳区望京街道 8 号' },
-  });
+  // Seed demo activity so the dashboard charts show real numbers.
+  // Only seed a pristine account (balance still 10,000): reruns reuse the
+  // first run's data instead of piling up duplicate records and failed orders.
+  const me = await (await page.request.get(`${BASE}/api/user`)).json();
+  if (me?.data?.user?.miles_balance !== 10000) {
+    console.log('demo user already seeded — skipping activity seed');
+  } else {
+    await page.request.post(`${BASE}/api/carbon`, { data: { distance: 1075, aircraftType: 'NARROW_STANDARD', cabinClass: 'Y', route: 'PEK→SHA' } });
+    await page.request.post(`${BASE}/api/carbon`, { data: { distance: 1888, aircraftType: 'WIDE_EFFICIENT', cabinClass: 'C', route: 'SHA→SZX' } });
+    await page.request.post(`${BASE}/api/orders`, { data: { productId: 3, quantity: 1 } });
+    await page.request.post(`${BASE}/api/orders`, { data: { productId: 1, quantity: 1 } });
+    await page.request.post(`${BASE}/api/orders`, { data: { productId: 2, quantity: 1 } });
+    await page.request.post(`${BASE}/api/orders`, {
+      data: { productId: 4, quantity: 1, address: '林青，13800138000，北京市朝阳区望京街道 8 号' },
+    });
+  }
 
   // Member dashboard with real KPIs
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
@@ -86,10 +93,20 @@ async function main() {
   await page.waitForTimeout(800);
   await page.screenshot({ path: path.join(OUT_DIR, 'mall.png') });
 
+  // Footprint page: trend chart, quarterly report, 10-year projection
+  await page.goto(`${BASE}/footprint`, { waitUntil: 'load' });
+  await page.waitForTimeout(1200); // let the recharts bars animate in
+  await page.screenshot({ path: path.join(OUT_DIR, 'footprint.png') });
+
   // Orders with vouchers
   await page.goto(`${BASE}/orders`, { waitUntil: 'load' });
   await page.waitForTimeout(800);
   await page.screenshot({ path: path.join(OUT_DIR, 'orders.png') });
+
+  // Miles ledger balance tab
+  await page.getByRole('tab', { name: '余额明细' }).click();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(OUT_DIR, 'orders-balance.png') });
 
   // Admin console in a separate session
   if (ADMIN_PASSWORD) {
@@ -105,6 +122,10 @@ async function main() {
     await adminPage.goto(`${BASE}/admin`, { waitUntil: 'load' });
     await adminPage.waitForTimeout(800);
     await adminPage.screenshot({ path: path.join(OUT_DIR, 'admin.png') });
+    // Order fulfilment tab
+    await adminPage.getByRole('tab', { name: '订单管理' }).click();
+    await adminPage.waitForTimeout(800);
+    await adminPage.screenshot({ path: path.join(OUT_DIR, 'admin-orders.png') });
     await adminContext.close();
   }
 

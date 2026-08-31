@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyJwt } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import db from '@/lib/db';
 import { CarbonCalculationSchema, calculateCarbonEmission } from '@/lib/carbon';
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('cookie')?.match(/token=([^;]+)/)?.[1];
-    if (!token) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
-    const payload = await verifyJwt(token);
+    const payload = await getAuthUser(request);
     if (!payload) {
-      return NextResponse.json({ error: '登录已过期' }, { status: 401 });
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -41,14 +36,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('cookie')?.match(/token=([^;]+)/)?.[1];
-    if (!token) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
-    const payload = await verifyJwt(token);
+    const payload = await getAuthUser(request);
     if (!payload) {
-      return NextResponse.json({ error: '登录已过期' }, { status: 401 });
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const stats = db.prepare(`

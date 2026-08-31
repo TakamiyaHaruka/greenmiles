@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyJwt } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import db from '@/lib/db';
 import { z } from 'zod';
 import crypto from 'crypto';
@@ -18,14 +18,9 @@ function generateVoucherCode(iconType: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('cookie')?.match(/token=([^;]+)/)?.[1];
-    if (!token) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
-    const payload = await verifyJwt(token);
+    const payload = await getAuthUser(request);
     if (!payload) {
-      return NextResponse.json({ error: '登录已过期' }, { status: 401 });
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -43,7 +38,7 @@ export async function POST(request: NextRequest) {
         throw new Error('USER_NOT_FOUND');
       }
 
-      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId) as { id: number; name: string; mileage_cost: number; stock: number; icon_type: string; category: string } | undefined;
+      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId) as { id: number; name: string; mileage_cost: number; stock: number; icon_type: string; category: string; project_name: string | null; project_standard: string | null; project_vintage: string | null } | undefined;
       if (!product) {
         throw new Error('PRODUCT_NOT_FOUND');
       }
@@ -79,6 +74,11 @@ export async function POST(request: NextRequest) {
         'INSERT INTO orders (user_id, product_id, status, voucher_code, address, quantity) VALUES (?, ?, ?, ?, ?, ?)'
       ).run(user.id, product.id, status, voucherCode, address || null, quantity);
 
+      // Ledger entry for the redemption
+      db.prepare(
+        "INSERT INTO miles_transactions (user_id, amount, type, order_id, description) VALUES (?, ?, 'redeem', ?, ?)"
+      ).run(user.id, -totalCost, orderResult.lastInsertRowid, `兑换「${product.name}」`);
+
       return {
         orderId: orderResult.lastInsertRowid,
         voucherCode,
@@ -97,6 +97,9 @@ export async function POST(request: NextRequest) {
         product_name: result.product.name,
         icon_type: result.product.icon_type,
         category: result.product.category,
+        project_name: result.product.project_name || '',
+        project_standard: result.product.project_standard || '',
+        project_vintage: result.product.project_vintage || '',
         mileage_cost: result.totalCost,
         quantity: result.quantity,
         status: result.status,
@@ -126,18 +129,16 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('cookie')?.match(/token=([^;]+)/)?.[1];
-    if (!token) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
-    const payload = await verifyJwt(token);
+    const payload = await getAuthUser(request);
     if (!payload) {
-      return NextResponse.json({ error: '登录已过期' }, { status: 401 });
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const orders = db.prepare(`
       SELECT o.*, p.name as product_name, p.icon_type, p.category,
+             COALESCE(p.project_name, '') AS project_name,
+             COALESCE(p.project_standard, '') AS project_standard,
+             COALESCE(p.project_vintage, '') AS project_vintage,
              (p.mileage_cost * o.quantity) AS mileage_cost
       FROM orders o
       JOIN products p ON o.product_id = p.id

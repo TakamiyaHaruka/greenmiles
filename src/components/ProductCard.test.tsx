@@ -2,8 +2,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ProductCard } from './ProductCard';
+import type { Product } from '@/lib/types';
 
-const mockProduct = {
+const mockProduct: Product = {
   id: 1,
   name: '共享单车骑行卡',
   description: '畅享城市绿色出行，有效期30天',
@@ -11,6 +12,9 @@ const mockProduct = {
   mileage_cost: 1200,
   stock: 100,
   icon_type: 'bike',
+  project_name: '',
+  project_standard: '',
+  project_vintage: '',
 };
 
 describe('ProductCard', () => {

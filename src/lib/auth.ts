@@ -29,6 +29,16 @@ export async function verifyJwt(token: string): Promise<JwtPayload | null> {
 }
 
 /**
+ * Extracts and verifies the session token from an incoming request's cookie
+ * header. API route handlers use this instead of hand-rolling cookie parsing.
+ */
+export async function getAuthUser(request: Request): Promise<JwtPayload | null> {
+  const token = request.headers.get('cookie')?.match(/token=([^;]+)/)?.[1];
+  if (!token) return null;
+  return verifyJwt(token);
+}
+
+/**
  * Admin console session (minimal PRD FR3 implementation).
  * The admin console is gated by ADMIN_PASSWORD, not a user account.
  */

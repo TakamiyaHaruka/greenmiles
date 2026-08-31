@@ -15,11 +15,11 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({
-  verifyJwt: vi.fn(),
+  getAuthUser: vi.fn(),
 }));
 
 import { POST, GET } from './route';
-import { verifyJwt } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { NextRequest } from 'next/server';
 
 function makePostRequest(body: unknown, cookie = 'token=valid') {
@@ -51,19 +51,19 @@ describe('POST /api/carbon', () => {
   });
 
   it('returns 401 when token is invalid', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce(null as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce(null as never);
     const response = await POST(makePostRequest({}));
     expect(response.status).toBe(401);
   });
 
   it('returns 400 for invalid body', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     const response = await POST(makePostRequest({ distance: -1, aircraftType: 'NOPE', cabinClass: 'X' }));
     expect(response.status).toBe(400);
   });
 
   it('recomputes emission server-side and persists the record', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockRun.mockReturnValueOnce({ lastInsertRowid: 9 });
 
     const response = await POST(
@@ -78,7 +78,7 @@ describe('POST /api/carbon', () => {
   });
 
   it('persists the route label when provided', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockRun.mockReturnValueOnce({ lastInsertRowid: 10 });
 
     const response = await POST(
@@ -101,7 +101,7 @@ describe('GET /api/carbon', () => {
   });
 
   it('returns personal flight stats and records', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet.mockReturnValueOnce({ flightCount: 2, totalCo2Kg: 193.5 });
     mockAll.mockReturnValueOnce([{ id: 1, co2_kg: 96.75 }]);
 

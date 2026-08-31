@@ -20,11 +20,11 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({
-  verifyJwt: vi.fn(),
+  getAuthUser: vi.fn(),
 }));
 
 import { POST, GET } from './route';
-import { verifyJwt } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { NextRequest } from 'next/server';
 
 function makePostRequest(body: unknown, cookie = 'token=valid') {
@@ -57,21 +57,21 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 401 when token is invalid', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce(null as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce(null as never);
     const response = await POST(makePostRequest({ productId: 1 }));
     const data = await response.json();
     expect(response.status).toBe(401);
   });
 
   it('returns 400 for invalid body', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     const response = await POST(makePostRequest({ productId: -1 }));
     const data = await response.json();
     expect(response.status).toBe(400);
   });
 
   it('returns 404 when user not found', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 999, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 999, email: 'x@x.com' } as never);
     mockTransactionFn.mockImplementationOnce(() => {
       throw new Error('USER_NOT_FOUND');
     });
@@ -82,7 +82,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 404 when product not found', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockTransactionFn.mockImplementationOnce(() => {
       throw new Error('PRODUCT_NOT_FOUND');
     });
@@ -93,7 +93,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 400 when out of stock', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockTransactionFn.mockImplementationOnce(() => {
       throw new Error('OUT_OF_STOCK');
     });
@@ -104,7 +104,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 400 when insufficient balance', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockTransactionFn.mockImplementationOnce(() => {
       throw new Error('INSUFFICIENT_BALANCE');
     });
@@ -115,7 +115,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns order data on success', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockTransactionFn.mockImplementationOnce(() => ({
       orderId: 1,
       voucherCode: 'BIKE-ABC12345',
@@ -132,7 +132,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 500 on unexpected error', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockTransactionFn.mockImplementationOnce(() => {
       throw new Error('Unknown error');
     });
@@ -143,7 +143,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 400 when quantity exceeds the per-order cap', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
 
     const response = await POST(makePostRequest({ productId: 1, quantity: 11 }));
     const data = await response.json();
@@ -152,7 +152,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 400 when physical product has no address', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet
       .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
       .mockReturnValueOnce({ id: 4, name: '帆布袋', mileage_cost: 500, stock: 30, icon_type: 'bag', category: 'physical' });
@@ -164,7 +164,7 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 400 when stock is lower than quantity', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet
       .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
       .mockReturnValueOnce({ id: 1, name: '骑行卡', mileage_cost: 1200, stock: 2, icon_type: 'bike', category: 'virtual' });
@@ -176,7 +176,7 @@ describe('POST /api/orders', () => {
   });
 
   it('charges mileage_cost times quantity and reflects it in the response', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet
       .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
       .mockReturnValueOnce({ id: 1, name: '骑行卡', mileage_cost: 1200, stock: 100, icon_type: 'bike', category: 'virtual' });
@@ -192,10 +192,12 @@ describe('POST /api/orders', () => {
     // UPDATE users deducts the total, UPDATE products decreases stock by quantity
     expect(mockRun).toHaveBeenNthCalledWith(1, 3600, 1);
     expect(mockRun).toHaveBeenNthCalledWith(2, 3, 1);
+    // 4th write is the ledger row: negative total, linked to the new order id
+    expect(mockRun).toHaveBeenNthCalledWith(4, 1, -3600, 42, '兑换「骑行卡」');
   });
 
   it('creates pending order with address for physical products', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet
       .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
       .mockReturnValueOnce({ id: 4, name: '帆布袋', mileage_cost: 500, stock: 30, icon_type: 'bag', category: 'physical' });
@@ -234,7 +236,7 @@ describe('GET /api/orders', () => {
   });
 
   it('returns order list on success', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     const orders = [
       { id: 1, product_name: 'Test', status: 'completed', voucher_code: 'BIKE-ABC' },
     ];

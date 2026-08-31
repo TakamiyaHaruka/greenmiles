@@ -58,3 +58,13 @@ export async function verifyAdminJwt(token: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Extracts and verifies the admin console session cookie. Shared by the
+ * /api/admin route handlers.
+ */
+export async function requireAdmin(request: Request): Promise<boolean> {
+  const token = request.headers.get('cookie')?.match(/admin_token=([^;]+)/)?.[1];
+  if (!token) return false;
+  return verifyAdminJwt(token);
+}

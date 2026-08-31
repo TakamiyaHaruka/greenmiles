@@ -17,12 +17,13 @@ export async function GET(request: NextRequest) {
 
     const totals = db.prepare(`
       SELECT
-        (SELECT COUNT(*) FROM orders) AS orderCount,
+        (SELECT COUNT(*) FROM orders WHERE status != 'cancelled') AS orderCount,
         (SELECT COALESCE(SUM(p.mileage_cost * o.quantity), 0)
-           FROM orders o JOIN products p ON o.product_id = p.id) AS greenMilesSpent,
-        (SELECT COUNT(*) FROM orders o
+           FROM orders o JOIN products p ON o.product_id = p.id
+           WHERE o.status != 'cancelled') AS greenMilesSpent,
+        (SELECT COALESCE(SUM(o.quantity), 0) FROM orders o
            JOIN products p ON o.product_id = p.id
-           WHERE p.category = 'carbon') AS treeCount,
+           WHERE p.category = 'carbon' AND o.status != 'cancelled') AS treeCount,
         (SELECT COALESCE(SUM(miles_balance), 0) FROM users) AS outstandingMiles,
         (SELECT COALESCE(SUM(co2_kg), 0) FROM carbon_records WHERE user_id = ?) AS userCo2Kg
     `).get(payload.userId) as {
@@ -39,8 +40,9 @@ export async function GET(request: NextRequest) {
     const monthlyRows = db.prepare(`
       SELECT strftime('%Y-%m', o.created_at) AS month,
              COALESCE(SUM(p.mileage_cost * o.quantity), 0) AS milesSpent,
-             COALESCE(SUM(CASE WHEN p.category = 'carbon' THEN 1 ELSE 0 END), 0) AS trees
+             COALESCE(SUM(CASE WHEN p.category = 'carbon' THEN o.quantity ELSE 0 END), 0) AS trees
       FROM orders o JOIN products p ON o.product_id = p.id
+      WHERE o.status != 'cancelled'
       GROUP BY month ORDER BY month DESC LIMIT 6
     `).all() as Array<{ month: string; milesSpent: number; trees: number }>;
 

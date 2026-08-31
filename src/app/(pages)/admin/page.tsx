@@ -32,7 +32,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Leaf, Bike, Hotel, TreePine, ShoppingBag, Plus, Pencil, Trash2, LogOut } from 'lucide-react';
+import { AdminOrdersTable } from '@/components/AdminOrdersTable';
 import type { Product } from '@/lib/types';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -250,7 +252,7 @@ export default function AdminPage() {
       <div className="mx-auto max-w-[1280px] px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-primary">商品管理</h1>
+            <h1 className="text-3xl font-bold text-primary">管理后台</h1>
             <Badge>Admin</Badge>
           </div>
           <div className="flex gap-2">
@@ -265,52 +267,63 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <Card className="border border-[#E2E8F0]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">图标</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>类别</TableHead>
-                <TableHead className="text-right">里程</TableHead>
-                <TableHead className="text-right">库存</TableHead>
-                <TableHead className="w-24 text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => {
-                const Icon = ICON_MAP[product.icon_type || ''] || ShoppingBag;
-                return (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
-                        <Icon className="h-4 w-4 text-accent" />
-                      </div>
-                    </TableCell>
-                    <TableCell>{product.id}</TableCell>
-                    <TableCell className="font-medium text-primary">{product.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {CATEGORY_LABELS[product.category] || product.category}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{product.mileage_cost.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{product.stock}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon-sm" aria-label={`编辑 ${product.name}`} onClick={() => openEdit(product)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label={`删除 ${product.name}`} onClick={() => handleDelete(product)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TableCell>
+        <Tabs defaultValue="products">
+          <TabsList>
+            <TabsTrigger value="products">商品管理</TabsTrigger>
+            <TabsTrigger value="orders">订单管理</TabsTrigger>
+          </TabsList>
+          <TabsContent value="products">
+            <Card className="border border-[#E2E8F0]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">图标</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>类别</TableHead>
+                    <TableHead className="text-right">里程</TableHead>
+                    <TableHead className="text-right">库存</TableHead>
+                    <TableHead className="w-24 text-right">操作</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {products.map((product) => {
+                    const Icon = ICON_MAP[product.icon_type || ''] || ShoppingBag;
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell>
+                          <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
+                            <Icon className="h-4 w-4 text-accent" />
+                          </div>
+                        </TableCell>
+                        <TableCell>{product.id}</TableCell>
+                        <TableCell className="font-medium text-primary">{product.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {CATEGORY_LABELS[product.category] || product.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{product.mileage_cost.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{product.stock}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon-sm" aria-label={`编辑 ${product.name}`} onClick={() => openEdit(product)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon-sm" aria-label={`删除 ${product.name}`} onClick={() => handleDelete(product)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+          <TabsContent value="orders">
+            <AdminOrdersTable />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Create / Edit Dialog */}

@@ -28,3 +28,11 @@ export async function createAndLoginUser(page: Page) {
   await loginViaApi(page, email);
   return email;
 }
+
+/** Establish an admin console session via API (shares the page's cookie jar). */
+export async function adminLoginViaApi(page: Page) {
+  const res = await page.request.post('/api/admin/login', {
+    data: { password: process.env.ADMIN_PASSWORD || 'e2e-admin-secret' },
+  });
+  expect(res.status()).toBe(200);
+}

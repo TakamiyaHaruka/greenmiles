@@ -36,11 +36,12 @@ describe('CarbonCalculator', () => {
     expect(screen.getByLabelText('飞行距离 (km)')).toBeInTheDocument();
   });
 
-  it('preset route button fills distance input', () => {
+  it('preset route button fills the airports and the computed distance', () => {
     render(<CarbonCalculator />);
     const button = screen.getByText('北京→上海');
     fireEvent.click(button);
+    // PEK→SHA great-circle distance is derived from airport coordinates
     const input = screen.getByLabelText('飞行距离 (km)') as HTMLInputElement;
-    expect(input.value).toBe('1075');
+    expect(input.value).toBe('1077');
   });
 });

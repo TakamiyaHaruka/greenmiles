@@ -27,3 +27,24 @@ export async function verifyJwt(token: string): Promise<JwtPayload | null> {
     return null;
   }
 }
+
+/**
+ * Admin console session (minimal PRD FR3 implementation).
+ * The admin console is gated by ADMIN_PASSWORD, not a user account.
+ */
+export async function signAdminJwt(): Promise<string> {
+  return new SignJWT({ role: 'admin' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('24h')
+    .sign(JWT_SECRET);
+}
+
+export async function verifyAdminJwt(token: string): Promise<boolean> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload.role === 'admin';
+  } catch {
+    return false;
+  }
+}

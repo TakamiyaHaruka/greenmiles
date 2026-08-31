@@ -2,6 +2,14 @@
 
 **更新日期：** 2026-05-27
 
+> **2026-08-31 增补（PRD v1.1 对照复审后）：**
+> - 修正：v1.0 报告中"Story 3-5 交付完整 CRUD"与实际不符——当时仅实现了 GET；现已补齐 `/admin` 管理后台（ADMIN_PASSWORD 登录）与商品增删改查 API
+> - 修复：购物车多数量结算只扣 1 件、实体商品收货地址收集后被丢弃、订单状态恒为 completed 三个缺陷
+> - 新增：登出功能、碳排放记录落库（carbon_records，含路线标签）与 `/api/stats` 实时 KPI（首页看板不再使用硬编码数据）
+> - 新增：计算器航班导入——起降机场选择器（机场坐标本地计算大圆距离）+ 航班号查询 `/api/flight`（FlightInfoProvider 抽象，演示为种子数据）
+> - 技术债清理：middleware 迁移到 proxy（API 未登录返回 401 JSON）、alert() 替换为 sonner toast、登录/注册表单与 Product 类型去重
+> - 技术债务表更新：测试基础设施一项已完成（Vitest 单测 + Playwright E2E + CI）
+
 ---
 
 ## 一、项目概况
@@ -131,9 +139,9 @@
 
 | 项目 | 说明 | 优先级 |
 |------|------|--------|
-| 测试基础设施 | 无测试框架、无测试用例 | 高 |
+| ~~测试基础设施~~ | ~~无测试框架、无测试用例~~ → 2026-08-31 已完成（Vitest + Playwright + CI） | 已解决 |
 | Google Fonts | Geist 字体网络加载失败，已移除 | 低 |
-| Middleware 弃用 | Next.js 16 标记 middleware 为 deprecated，建议迁移到 proxy | 中 |
+| ~~Middleware 弃用~~ | ~~Next.js 16 标记 middleware 为 deprecated~~ → 2026-08-31 已迁移到 `src/proxy.ts`（未登录 API 请求返回 401 JSON，页面仍重定向 /login） | 已解决 |
 | 数据库文件 | greenmiles.db 未加入 .gitignore | 低 |
 
 ---

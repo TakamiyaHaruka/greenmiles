@@ -15,16 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingCart, Bike, Hotel, TreePine, ShoppingBag } from 'lucide-react';
-
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  category: string;
-  mileage_cost: number;
-  stock: number;
-  icon_type: string;
-}
+import type { Product } from '@/lib/types';
 
 interface ProductDetailSheetProps {
   product: Product | null;
@@ -76,12 +67,13 @@ export function ProductDetailSheet({
   const isPhysical = product.category === 'physical';
   const terms = TERMS_MAP[product.icon_type];
 
-  const onSubmit = () => {
+  const onSubmit = (data: AddressForm) => {
     addItem({
       id: product.id,
       name: product.name,
       mileage_cost: product.mileage_cost,
       icon_type: product.icon_type,
+      address: `${data.name}，${data.phone}，${data.address}`,
     });
     onOpenChange(false);
     reset();

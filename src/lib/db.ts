@@ -35,6 +35,7 @@ db.exec(`
     status TEXT DEFAULT 'pending',
     voucher_code TEXT UNIQUE,
     address TEXT,
+    quantity INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -48,6 +49,20 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// Migrate databases created before the quantity column was added
+try {
+  db.exec('ALTER TABLE orders ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+} catch {
+  // Column already exists
+}
+
+// Migrate databases created before the route label was stored on carbon records
+try {
+  db.exec('ALTER TABLE carbon_records ADD COLUMN route TEXT');
+} catch {
+  // Column already exists
+}
 
 // Seed data - Test user (password: password123)
 import bcrypt from 'bcryptjs';
@@ -67,5 +82,12 @@ db.exec(`
     (3, '植树公益', '为地球种下一棵树，获得碳抵消证书', 'carbon', 3000, 999, 'tree'),
     (4, '帆布袋', '环保帆布袋，实用又时尚', 'physical', 500, 30, 'bag');
 `);
+
+// Normalized product select — nullable columns coalesced to match the shared Product type
+export const PRODUCT_SELECT = `
+  SELECT id, name, COALESCE(description, '') AS description, category,
+    mileage_cost, stock, COALESCE(icon_type, 'bag') AS icon_type
+  FROM products
+`;
 
 export default db;

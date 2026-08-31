@@ -13,6 +13,8 @@ interface VoucherData {
   icon_type: string;
   category: string;
   mileage_cost: number;
+  quantity?: number;
+  status?: string;
   new_balance: number;
 }
 
@@ -83,7 +85,7 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
               <TreePine className="h-8 w-8 text-accent mx-auto mb-2" />
               <p className="text-sm font-medium text-primary">碳抵消证书</p>
               <p className="text-xs text-muted-foreground mt-1">
-                您已在阿拉善荒漠种下一棵树
+                您已在阿拉善荒漠种下{(voucher.quantity ?? 1) > 1 ? `${voucher.quantity} 棵树` : '一棵树'}
               </p>
             </div>
             <div className="p-3 bg-muted rounded-lg">
@@ -122,7 +124,10 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
           <Icon className="h-6 w-6 text-accent" />
         </div>
         <h3 className="text-lg font-bold text-primary">兑换成功</h3>
-        <p className="text-sm text-muted-foreground">{voucher.product_name}</p>
+        <p className="text-sm text-muted-foreground">
+          {voucher.product_name}
+          {(voucher.quantity ?? 1) > 1 && ` × ${voucher.quantity}`}
+        </p>
       </div>
 
       {renderVoucherContent()}

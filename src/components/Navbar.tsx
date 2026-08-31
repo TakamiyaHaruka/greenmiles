@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useUserStore } from '@/stores/userStore';
 import { useCartStore } from '@/stores/cartStore';
 import { MilesBalance } from '@/components/MilesBalance';
@@ -10,7 +10,7 @@ import { CartDialog } from '@/components/CartDialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Leaf, Search, ShoppingCart } from 'lucide-react';
+import { Leaf, Search, ShoppingCart, LogOut } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: '首页' },
@@ -20,10 +20,22 @@ const navLinks = [
 
 export function Navbar() {
   const pathname = usePathname();
-  const { isAuthenticated } = useUserStore();
-  const { itemCount } = useCartStore();
+  const router = useRouter();
+  const { isAuthenticated, clearUser } = useUserStore();
+  const { itemCount, clearCart } = useCartStore();
   const [cartOpen, setCartOpen] = useState(false);
   const count = itemCount();
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Clear local state even if the request fails
+    }
+    clearUser();
+    clearCart();
+    router.push('/login');
+  };
 
   return (
     <>
@@ -89,6 +101,17 @@ export function Navbar() {
 
                 {/* Miles Balance */}
                 <MilesBalance />
+
+                {/* Logout */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="退出登录"
+                  title="退出登录"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
               </>
             ) : (
               <>

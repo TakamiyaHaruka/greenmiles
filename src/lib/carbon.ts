@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+// CO2 offset attributed to one redeemed tree (kg per year).
+// Kept consistent with the tree analogy in getCarbonAnalogy().
+export const CARBON_OFFSET_PER_TREE_KG = 22;
+
 // Aircraft types with their emission coefficients (kg CO2 per km)
 export const AIRCRAFT_TYPES = {
   NARROW_EFFICIENT: { coefficient: 0.075, label: '窄体高效机型' },
@@ -20,12 +24,12 @@ export const CABIN_CLASSES = {
 
 export type CabinClass = keyof typeof CABIN_CLASSES;
 
-// Preset routes
+// Preset routes — airport pairs; the distance is derived from coordinates (airports.ts)
 export const PRESET_ROUTES = [
-  { from: '北京', to: '上海', distance: 1075 },
-  { from: '北京', to: '广州', distance: 1888 },
-  { from: '上海', to: '深圳', distance: 1240 },
-  { from: '北京', to: '成都', distance: 1515 },
+  { from: 'PEK', to: 'SHA' },
+  { from: 'PEK', to: 'CAN' },
+  { from: 'SHA', to: 'SZX' },
+  { from: 'PEK', to: 'CTU' },
 ] as const;
 
 // Zod schema for carbon calculation input
@@ -37,6 +41,8 @@ export const CarbonCalculationSchema = z.object({
   cabinClass: z.enum(['Y', 'W', 'C', 'F'], {
     message: '请选择有效的舱位',
   }),
+  // Optional route label for the footprint history, e.g. "PEK→SHA"
+  route: z.string().trim().max(20).optional(),
 });
 
 export type CarbonCalculationInput = z.infer<typeof CarbonCalculationSchema>;

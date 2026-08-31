@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_SC } from "next/font/google";
+import { Toaster } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { UserInitializer } from "@/components/UserInitializer";
 import "./globals.css";
@@ -27,6 +28,7 @@ export default function RootLayout({
         <UserInitializer />
         <Navbar />
         <main className="flex-1">{children}</main>
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );

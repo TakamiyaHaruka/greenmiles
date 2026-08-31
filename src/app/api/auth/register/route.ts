@@ -32,9 +32,17 @@ export async function POST(request: Request) {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Insert new user with default 10000 miles
-    const stmt = db.prepare('INSERT INTO users (email, password_hash, miles_balance) VALUES (?, ?, 10000)');
-    stmt.run(email, passwordHash);
+    // Insert new user with default 10000 miles, plus the matching ledger entry
+    // — one transaction so the ledger can never miss the welcome grant
+    db.transaction(() => {
+      const result = db.prepare(
+        'INSERT INTO users (email, password_hash, miles_balance) VALUES (?, ?, 10000)'
+      ).run(email, passwordHash);
+
+      db.prepare(
+        "INSERT INTO miles_transactions (user_id, amount, type, description) VALUES (?, 10000, 'grant', '注册赠礼')"
+      ).run(result.lastInsertRowid);
+    })();
 
     return NextResponse.json(
       { data: { message: '注册成功，请登录' } },

@@ -14,11 +14,11 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({
-  verifyJwt: vi.fn(),
+  getAuthUser: vi.fn(),
 }));
 
 import { GET } from './route';
-import { verifyJwt } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import { NextRequest } from 'next/server';
 
 function getRequest(cookie = 'token=valid') {
@@ -39,13 +39,13 @@ describe('GET /api/stats', () => {
   });
 
   it('returns 401 when token is invalid', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce(null as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce(null as never);
     const response = await GET(getRequest());
     expect(response.status).toBe(401);
   });
 
   it('aggregates platform KPIs from real order data', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet.mockReturnValueOnce({
       orderCount: 5,
       greenMilesSpent: 3200,
@@ -76,7 +76,7 @@ describe('GET /api/stats', () => {
   });
 
   it('handles an empty platform without dividing by zero', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet.mockReturnValueOnce({
       orderCount: 0,
       greenMilesSpent: 0,

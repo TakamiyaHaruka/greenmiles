@@ -9,4 +9,8 @@ export interface Product {
   mileage_cost: number;
   stock: number;
   icon_type: string;
+  /** Offset project attribution ('' when the product has none, e.g. coupons) */
+  project_name: string;
+  project_standard: string;
+  project_vintage: string;
 }

@@ -11,11 +11,11 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({
-  verifyJwt: vi.fn(),
+  getAuthUser: vi.fn(),
 }));
 
 import { GET } from './route';
-import { verifyJwt } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 
 function makeRequest(cookie?: string) {
   return new Request('http://localhost/api/user', {
@@ -37,17 +37,17 @@ describe('GET /api/user', () => {
   });
 
   it('returns 401 when token is invalid', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce(null as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce(null as never);
 
     const response = await GET(makeRequest('token=invalid'));
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toBe('token 无效');
+    expect(data.error).toBe('未登录');
   });
 
   it('returns 404 when user not found', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 999, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 999, email: 'x@x.com' } as never);
     mockGet.mockReturnValueOnce(undefined);
 
     const response = await GET(makeRequest('token=valid'));
@@ -59,7 +59,7 @@ describe('GET /api/user', () => {
 
   it('returns 200 with user data on success', async () => {
     const user = { id: 1, email: 'test@greenmiles.com', miles_balance: 10000 };
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'test@greenmiles.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'test@greenmiles.com' } as never);
     mockGet.mockReturnValueOnce(user);
 
     const response = await GET(makeRequest('token=valid'));
@@ -70,7 +70,7 @@ describe('GET /api/user', () => {
   });
 
   it('returns 500 on db error', async () => {
-    vi.mocked(verifyJwt).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet.mockImplementationOnce(() => {
       throw new Error('DB error');
     });

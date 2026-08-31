@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminJwt } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import db, { PRODUCT_SELECT } from '@/lib/db';
 import { ProductSchema } from '@/lib/schemas';
-
-async function requireAdmin(request: NextRequest): Promise<boolean> {
-  const token = request.headers.get('cookie')?.match(/admin_token=([^;]+)/)?.[1];
-  if (!token) return false;
-  return verifyAdminJwt(token);
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,10 +31,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, description, category, mileage_cost, stock, icon_type } = parsed.data;
+    const { name, description, category, mileage_cost, stock, icon_type, project_name, project_standard, project_vintage } = parsed.data;
     const result = db.prepare(
-      'INSERT INTO products (name, description, category, mileage_cost, stock, icon_type) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(name, description || null, category, mileage_cost, stock, icon_type || null);
+      `INSERT INTO products
+         (name, description, category, mileage_cost, stock, icon_type, project_name, project_standard, project_vintage)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      name,
+      description || null,
+      category,
+      mileage_cost,
+      stock,
+      icon_type || null,
+      project_name || null,
+      project_standard || null,
+      project_vintage || null
+    );
 
     const created = db.prepare(`${PRODUCT_SELECT} WHERE id = ?`).get(result.lastInsertRowid);
     return NextResponse.json({ data: created }, { status: 201 });

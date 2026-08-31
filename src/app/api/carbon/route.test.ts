@@ -104,6 +104,7 @@ describe('GET /api/carbon', () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
     mockGet.mockReturnValueOnce({ flightCount: 2, totalCo2Kg: 193.5 });
     mockAll.mockReturnValueOnce([{ id: 1, co2_kg: 96.75 }]);
+    mockGet.mockReturnValueOnce({ trees: 3 });
 
     const response = await GET(getRequest());
     const data = await response.json();
@@ -112,5 +113,8 @@ describe('GET /api/carbon', () => {
     expect(data.data.flightCount).toBe(2);
     expect(data.data.totalCo2Kg).toBe(193.5);
     expect(data.data.records).toHaveLength(1);
+    // Standing trees = carbon redemptions excluding cancelled orders (2nd get: stats → trees)
+    expect(data.data.myTrees).toBe(3);
+    expect(mockGet).toHaveBeenNthCalledWith(2, 1);
   });
 });

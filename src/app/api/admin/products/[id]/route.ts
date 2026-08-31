@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminJwt } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import db, { PRODUCT_SELECT } from '@/lib/db';
 import { ProductSchema } from '@/lib/schemas';
-
-async function requireAdmin(request: NextRequest): Promise<boolean> {
-  const token = request.headers.get('cookie')?.match(/admin_token=([^;]+)/)?.[1];
-  if (!token) return false;
-  return verifyAdminJwt(token);
-}
 
 function parseId(raw: string): number | null {
   const id = Number(raw);
@@ -37,10 +31,26 @@ export async function PUT(
       );
     }
 
-    const { name, description, category, mileage_cost, stock, icon_type } = parsed.data;
+    const { name, description, category, mileage_cost, stock, icon_type, project_name, project_standard, project_vintage } = parsed.data;
+    // The project columns are always SET — without them every edit would wipe
+    // the offset project attribution
     const result = db.prepare(
-      'UPDATE products SET name = ?, description = ?, category = ?, mileage_cost = ?, stock = ?, icon_type = ? WHERE id = ?'
-    ).run(name, description || null, category, mileage_cost, stock, icon_type || null, productId);
+      `UPDATE products SET
+         name = ?, description = ?, category = ?, mileage_cost = ?, stock = ?, icon_type = ?,
+         project_name = ?, project_standard = ?, project_vintage = ?
+       WHERE id = ?`
+    ).run(
+      name,
+      description || null,
+      category,
+      mileage_cost,
+      stock,
+      icon_type || null,
+      project_name || null,
+      project_standard || null,
+      project_vintage || null,
+      productId
+    );
 
     if (result.changes === 0) {
       return NextResponse.json({ error: '商品不存在' }, { status: 404 });

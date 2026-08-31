@@ -16,6 +16,7 @@ const navLinks = [
   { href: '/', label: '首页' },
   { href: '/mall', label: '商城' },
   { href: '/orders', label: '订单' },
+  { href: '/footprint', label: '碳足迹' },
 ];
 
 export function Navbar() {

@@ -15,11 +15,11 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({
-  verifyAdminJwt: vi.fn(),
+  requireAdmin: vi.fn(),
 }));
 
 import { PUT, DELETE } from './route';
-import { verifyAdminJwt } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { NextRequest } from 'next/server';
 
 function makeRequest(method: string, body?: unknown, cookie = 'admin_token=valid') {
@@ -44,10 +44,11 @@ const validProduct = {
 describe('PUT /api/admin/products/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminJwt).mockResolvedValue(true);
+    vi.mocked(requireAdmin).mockResolvedValue(true);
   });
 
   it('returns 401 without an admin session', async () => {
+    vi.mocked(requireAdmin).mockResolvedValueOnce(false);
     const response = await PUT(makeRequest('PUT', validProduct, ''), {
       params: Promise.resolve({ id: '3' }),
     });
@@ -81,15 +82,45 @@ describe('PUT /api/admin/products/[id]', () => {
     expect(response.status).toBe(200);
     expect(data.data.id).toBe(3);
   });
+
+  it('always SETs the project columns — an edit must not wipe attribution', async () => {
+    mockRun.mockReturnValueOnce({ changes: 1 });
+    mockGet.mockReturnValueOnce({ id: 3, ...validProduct });
+
+    const response = await PUT(
+      makeRequest('PUT', {
+        ...validProduct,
+        project_name: '阿拉善荒漠植树造林',
+        project_standard: 'CCER（演示口径）',
+        project_vintage: '2026',
+      }),
+      { params: Promise.resolve({ id: '3' }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRun).toHaveBeenCalledWith(
+      '骑行卡',
+      null,
+      'virtual',
+      1200,
+      50,
+      'bike',
+      '阿拉善荒漠植树造林',
+      'CCER（演示口径）',
+      '2026',
+      3
+    );
+  });
 });
 
 describe('DELETE /api/admin/products/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminJwt).mockResolvedValue(true);
+    vi.mocked(requireAdmin).mockResolvedValue(true);
   });
 
   it('returns 401 without an admin session', async () => {
+    vi.mocked(requireAdmin).mockResolvedValueOnce(false);
     const response = await DELETE(makeRequest('DELETE', undefined, ''), {
       params: Promise.resolve({ id: '3' }),
     });

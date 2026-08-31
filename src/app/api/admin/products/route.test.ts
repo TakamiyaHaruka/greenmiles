@@ -16,11 +16,11 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({
-  verifyAdminJwt: vi.fn(),
+  requireAdmin: vi.fn(),
 }));
 
 import { GET, POST } from './route';
-import { verifyAdminJwt } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { NextRequest } from 'next/server';
 
 function makeRequest(method: string, body?: unknown, cookie = 'admin_token=valid') {
@@ -46,13 +46,13 @@ describe('/api/admin/products', () => {
     });
 
     it('returns 401 when the admin token is invalid', async () => {
-      vi.mocked(verifyAdminJwt).mockResolvedValueOnce(false);
+      vi.mocked(requireAdmin).mockResolvedValueOnce(false);
       const response = await GET(makeRequest('GET'));
       expect(response.status).toBe(401);
     });
 
     it('returns the product list for an admin session', async () => {
-      vi.mocked(verifyAdminJwt).mockResolvedValueOnce(true);
+      vi.mocked(requireAdmin).mockResolvedValueOnce(true);
       mockAll.mockReturnValueOnce([{ id: 1, name: '骑行卡' }]);
       const response = await GET(makeRequest('GET'));
       const data = await response.json();
@@ -68,7 +68,7 @@ describe('/api/admin/products', () => {
     });
 
     it('returns 400 for an invalid product payload', async () => {
-      vi.mocked(verifyAdminJwt).mockResolvedValueOnce(true);
+      vi.mocked(requireAdmin).mockResolvedValueOnce(true);
       const response = await POST(
         makeRequest('POST', { name: '', category: 'virtual', mileage_cost: -1, stock: -5 })
       );
@@ -76,7 +76,7 @@ describe('/api/admin/products', () => {
     });
 
     it('creates a product and returns it', async () => {
-      vi.mocked(verifyAdminJwt).mockResolvedValueOnce(true);
+      vi.mocked(requireAdmin).mockResolvedValueOnce(true);
       mockRun.mockReturnValueOnce({ lastInsertRowid: 5 });
       mockGet.mockReturnValueOnce({ id: 5, name: '新商品', mileage_cost: 800, stock: 10 });
 
@@ -99,7 +99,41 @@ describe('/api/admin/products', () => {
         'virtual',
         800,
         10,
-        'bike'
+        'bike',
+        null,
+        null,
+        null
+      );
+    });
+
+    it('persists the offset project attribution', async () => {
+      vi.mocked(requireAdmin).mockResolvedValueOnce(true);
+      mockRun.mockReturnValueOnce({ lastInsertRowid: 6 });
+      mockGet.mockReturnValueOnce({ id: 6, name: '湿地修复' });
+
+      const response = await POST(
+        makeRequest('POST', {
+          name: '湿地修复',
+          category: 'carbon',
+          mileage_cost: 2500,
+          stock: 99,
+          project_name: '青海湿地生态修复',
+          project_standard: 'VCS',
+          project_vintage: '2025',
+        })
+      );
+
+      expect(response.status).toBe(201);
+      expect(mockRun).toHaveBeenCalledWith(
+        '湿地修复',
+        null,
+        'carbon',
+        2500,
+        99,
+        null,
+        '青海湿地生态修复',
+        'VCS',
+        '2025'
       );
     });
   });

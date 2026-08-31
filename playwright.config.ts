@@ -31,6 +31,9 @@ export default defineConfig({
       PORT: String(PORT),
       JWT_SECRET: 'e2e-test-secret',
       DATABASE_PATH: E2E_DB,
+      // The admin e2e journeys log in via /api/admin/login, which 503s
+      // without a configured password
+      ADMIN_PASSWORD: 'e2e-admin-secret',
     },
   },
 });

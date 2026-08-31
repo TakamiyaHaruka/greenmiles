@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   calculateCarbonEmission,
+  projectedOffsetKg,
   getCarbonAnalogy,
   formatEmission,
   AIRCRAFT_TYPES,
@@ -76,6 +77,23 @@ describe('calculateCarbonEmission', () => {
 
   it('throws for zero distance', () => {
     expect(() => calculateCarbonEmission(0, 'NARROW_EFFICIENT', 'Y')).toThrow();
+  });
+});
+
+describe('projectedOffsetKg', () => {
+  it('projects 22 kg per tree per year', () => {
+    expect(projectedOffsetKg(1, 10)).toBe(220);
+    expect(projectedOffsetKg(3, 10)).toBe(660);
+  });
+
+  it('defaults to a 10-year horizon', () => {
+    expect(projectedOffsetKg(2)).toBe(440);
+  });
+
+  it('returns 0 for no trees or a non-positive horizon', () => {
+    expect(projectedOffsetKg(0)).toBe(0);
+    expect(projectedOffsetKg(-1)).toBe(0);
+    expect(projectedOffsetKg(1, 0)).toBe(0);
   });
 });
 

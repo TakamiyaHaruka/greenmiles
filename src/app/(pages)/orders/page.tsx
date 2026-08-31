@@ -18,6 +18,8 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { useUserStore } from '@/stores/userStore';
+import { SharePoster } from '@/components/SharePoster';
+import { projectedOffsetKg } from '@/lib/carbon';
 
 interface Order {
   id: number;
@@ -30,6 +32,9 @@ interface Order {
   voucher_code: string;
   address?: string | null;
   created_at: string;
+  project_name?: string;
+  project_standard?: string;
+  project_vintage?: string;
 }
 
 interface MilesTransaction {
@@ -139,6 +144,20 @@ export default function OrdersPage() {
                 <QRCodeSVG value={order.voucher_code} size={128} />
               </div>
             )}
+            <div className="flex justify-center pt-1">
+              <SharePoster
+                title={order.product_name}
+                subtitle="GreenMiles 兑换券"
+                rows={[
+                  { label: '券码', value: order.voucher_code },
+                  { label: '消耗里程', value: `${order.mileage_cost.toLocaleString()} 里程` },
+                ]}
+                serial={order.voucher_code}
+                qrValue={order.voucher_code}
+                fileName={`greenmiles-voucher-${order.voucher_code}`}
+                buttonLabel="下载券码海报"
+              />
+            </div>
           </div>
         );
 
@@ -149,8 +168,24 @@ export default function OrdersPage() {
               <TreePine className="h-8 w-8 text-accent mx-auto mb-2" />
               <p className="text-sm font-medium text-primary">碳抵消证书</p>
               <p className="text-xs text-muted-foreground mt-1">
-                您已在阿拉善荒漠种下一棵树
+                您已通过「{order.project_name || '阿拉善荒漠植树造林'}」项目种下
+                {order.quantity > 1 ? `${order.quantity} 棵树` : '一棵树'}
               </p>
+            </div>
+            <div className="flex justify-center">
+              <SharePoster
+                title="植树公益证书"
+                subtitle={order.project_name || '阿拉善荒漠植树造林'}
+                rows={[
+                  { label: '种树', value: `${order.quantity} 棵` },
+                  { label: '项目标准', value: order.project_standard || 'CCER（演示口径）' },
+                  { label: '项目年份', value: order.project_vintage || '—' },
+                  { label: '十年预计固定', value: `${projectedOffsetKg(order.quantity).toLocaleString()} kg CO₂` },
+                ]}
+                serial={order.voucher_code}
+                fileName={`greenmiles-tree-${order.voucher_code}`}
+                buttonLabel="下载证书海报"
+              />
             </div>
             <div className="p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-2 mb-2">

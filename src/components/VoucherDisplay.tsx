@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Bike, Hotel, TreePine, ShoppingBag, Copy, Check, Leaf } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
+import { SharePoster } from '@/components/SharePoster';
+import { projectedOffsetKg } from '@/lib/carbon';
 
 interface VoucherData {
   id: number;
@@ -16,6 +18,9 @@ interface VoucherData {
   quantity?: number;
   status?: string;
   new_balance: number;
+  project_name?: string;
+  project_standard?: string;
+  project_vintage?: string;
 }
 
 interface VoucherDisplayProps {
@@ -75,6 +80,20 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
                 <QRCodeSVG value={voucher.voucher_code} size={128} />
               </div>
             )}
+            <div className="flex justify-center pt-1">
+              <SharePoster
+                title={voucher.product_name}
+                subtitle="GreenMiles 兑换券"
+                rows={[
+                  { label: '券码', value: voucher.voucher_code },
+                  { label: '消耗里程', value: `${voucher.mileage_cost.toLocaleString()} 里程` },
+                ]}
+                serial={voucher.voucher_code}
+                qrValue={voucher.voucher_code}
+                fileName={`greenmiles-voucher-${voucher.voucher_code}`}
+                buttonLabel="下载券码海报"
+              />
+            </div>
           </div>
         );
 
@@ -85,8 +104,24 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
               <TreePine className="h-8 w-8 text-accent mx-auto mb-2" />
               <p className="text-sm font-medium text-primary">碳抵消证书</p>
               <p className="text-xs text-muted-foreground mt-1">
-                您已在阿拉善荒漠种下{(voucher.quantity ?? 1) > 1 ? `${voucher.quantity} 棵树` : '一棵树'}
+                您已通过「{voucher.project_name || '阿拉善荒漠植树造林'}」项目种下
+                {(voucher.quantity ?? 1) > 1 ? `${voucher.quantity} 棵树` : '一棵树'}
               </p>
+            </div>
+            <div className="flex justify-center">
+              <SharePoster
+                title="植树公益证书"
+                subtitle={voucher.project_name || '阿拉善荒漠植树造林'}
+                rows={[
+                  { label: '种树', value: `${voucher.quantity ?? 1} 棵` },
+                  { label: '项目标准', value: voucher.project_standard || 'CCER（演示口径）' },
+                  { label: '项目年份', value: voucher.project_vintage || '—' },
+                  { label: '十年预计固定', value: `${projectedOffsetKg(voucher.quantity ?? 1).toLocaleString()} kg CO₂` },
+                ]}
+                serial={voucher.voucher_code}
+                fileName={`greenmiles-tree-${voucher.voucher_code}`}
+                buttonLabel="下载证书海报"
+              />
             </div>
             <div className="p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-2 mb-2">

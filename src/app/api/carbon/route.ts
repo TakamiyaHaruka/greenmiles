@@ -47,13 +47,21 @@ export async function GET(request: NextRequest) {
     `).get(payload.userId) as { flightCount: number; totalCo2Kg: number };
 
     const records = db.prepare(`
-      SELECT * FROM carbon_records WHERE user_id = ? ORDER BY created_at DESC LIMIT 20
+      SELECT * FROM carbon_records WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 50
     `).all(payload.userId);
+
+    // Trees actually standing: carbon redemptions minus cancelled orders
+    const myTrees = db.prepare(`
+      SELECT COALESCE(SUM(o.quantity), 0) AS trees
+      FROM orders o JOIN products p ON o.product_id = p.id
+      WHERE o.user_id = ? AND p.category = 'carbon' AND o.status != 'cancelled'
+    `).get(payload.userId) as { trees: number };
 
     return NextResponse.json({
       data: {
         flightCount: stats.flightCount,
         totalCo2Kg: Math.round(stats.totalCo2Kg * 100) / 100,
+        myTrees: myTrees.trees,
         records,
       },
     });

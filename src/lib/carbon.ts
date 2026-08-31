@@ -74,6 +74,16 @@ export function calculateCarbonEmission(
 }
 
 /**
+ * Total CO2 a grove of redeemed trees will have absorbed after N years,
+ * at 22 kg per tree per year. Powers the "ten-year projection" on the
+ * footprint page and tree certificates.
+ */
+export function projectedOffsetKg(trees: number, years = 10): number {
+  if (trees <= 0 || years <= 0) return 0;
+  return trees * CARBON_OFFSET_PER_TREE_KG * years;
+}
+
+/**
  * Get a human-readable analogy for carbon emission
  */
 export function getCarbonAnalogy(co2Kg: number): string {

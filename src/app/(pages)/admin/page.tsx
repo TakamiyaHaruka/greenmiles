@@ -57,6 +57,9 @@ const FormSchema = z.object({
   mileage_cost: z.coerce.number().positive('里程必须大于 0'),
   stock: z.coerce.number().int('库存必须为整数').min(0, '库存不能为负'),
   icon_type: z.string().optional(),
+  project_name: z.string().optional(),
+  project_standard: z.string().optional(),
+  project_vintage: z.string().optional(),
 });
 
 type ProductForm = z.infer<typeof FormSchema>;
@@ -80,7 +83,17 @@ export default function AdminPage() {
     formState: { errors },
   } = useForm<z.input<typeof FormSchema>, unknown, ProductForm>({
     resolver: zodResolver(FormSchema),
-    defaultValues: { name: '', description: '', category: undefined, mileage_cost: 0, stock: 0, icon_type: undefined },
+    defaultValues: {
+      name: '',
+      description: '',
+      category: undefined,
+      mileage_cost: 0,
+      stock: 0,
+      icon_type: undefined,
+      project_name: '',
+      project_standard: '',
+      project_vintage: '',
+    },
   });
 
   const loadProducts = async () => {
@@ -145,7 +158,17 @@ export default function AdminPage() {
   const openCreate = () => {
     setEditing(null);
     setFormError('');
-    reset({ name: '', description: '', category: undefined, mileage_cost: 0, stock: 0, icon_type: undefined });
+    reset({
+      name: '',
+      description: '',
+      category: undefined,
+      mileage_cost: 0,
+      stock: 0,
+      icon_type: undefined,
+      project_name: '',
+      project_standard: '',
+      project_vintage: '',
+    });
     setDialogOpen(true);
   };
 
@@ -159,6 +182,9 @@ export default function AdminPage() {
       mileage_cost: product.mileage_cost,
       stock: product.stock,
       icon_type: product.icon_type || undefined,
+      project_name: product.project_name || '',
+      project_standard: product.project_standard || '',
+      project_vintage: product.project_vintage || '',
     });
     setDialogOpen(true);
   };
@@ -409,6 +435,30 @@ export default function AdminPage() {
                 </label>
                 <Input id="product-stock" type="number" {...register('stock')} />
                 {errors.stock && <p className="text-xs text-destructive mt-1">{errors.stock.message}</p>}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                抵消项目归属 <span className="text-normal">(碳抵消类商品显示在证书上)</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  id="project-name"
+                  placeholder="项目名称，如 阿拉善荒漠植树造林"
+                  {...register('project_name')}
+                />
+                <Input
+                  id="project-standard"
+                  placeholder="项目标准，如 CCER"
+                  {...register('project_standard')}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <Input
+                  id="project-vintage"
+                  placeholder="项目年份，如 2026"
+                  {...register('project_vintage')}
+                />
               </div>
             </div>
             {formError && <p className="text-xs text-destructive">{formError}</p>}

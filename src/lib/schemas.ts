@@ -21,6 +21,10 @@ export const ProductSchema = z.object({
   mileage_cost: z.number().positive('里程必须大于 0'),
   stock: z.number().int().min(0, '库存不能为负'),
   icon_type: z.string().optional(),
+  // Offset project attribution (carbon category products)
+  project_name: z.string().trim().max(100).optional(),
+  project_standard: z.string().trim().max(100).optional(),
+  project_vintage: z.string().trim().max(20).optional(),
 });
 
 export const OrderSchema = z.object({

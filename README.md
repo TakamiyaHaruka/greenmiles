@@ -36,18 +36,33 @@ The core experience journey: **Reveal** (see the emission) → **Offset** (take 
 
 ![Mall](docs/screenshots/mall.png)
 
-**Admin console** (`/admin`, gated by `ADMIN_PASSWORD`):
+**Footprint page — monthly trend, quarterly report, 10-year projection and downloadable certificates:**
+
+![Footprint](docs/screenshots/footprint.png)
+
+**Orders — vouchers, cancellation, and the miles-ledger balance tab:**
+
+![Orders balance tab](docs/screenshots/orders-balance.png)
+
+**Admin console** (`/admin`, gated by `ADMIN_PASSWORD`) — product CRUD and order fulfilment:
 
 ![Admin console](docs/screenshots/admin.png)
+
+![Admin orders](docs/screenshots/admin-orders.png)
 
 ## Features
 
 - 🔐 **Auth** — register / login / logout with JWT (httpOnly cookie) and bcrypt password hashing
 - 🧮 **Carbon calculator** — import by flight number (seeded demo data) or pick departure/arrival airports and the great-circle distance is computed locally from built-in airport coordinates; combine with aircraft type and cabin class to get CO₂ plus a relatable analogy ("a tree's X days of absorption"); save flights to your carbon-footprint history (the server recomputes the value before persisting it)
 - 🛒 **Miles mall** — 4 product types (physical goods, vouchers, carbon offsets, donations) with stock, cart dialog, multi-quantity settlement (1–10 per order) and a shipping-address form for physical goods
-- 🎫 **Voucher proof** — each redemption produces a voucher code with QR code; physical orders go to a `pending` (awaiting shipment) state
+- 🎫 **Voucher proof** — each redemption produces a voucher code with QR code; physical orders go to a `pending` (awaiting shipment) state; vouchers and tree certificates can be downloaded as share posters (Canvas → PNG with QR, zero extra runtime deps)
+- 📒 **Miles ledger** — every grant / redeem / refund is a row in `miles_transactions`; the orders page has a balance tab with the last 50 entries (income in green, spending in red); databases created before the ledger existed are backfilled idempotently on startup
+- ↩️ **Order cancellation** — pending orders can be cancelled by their owner in one transaction: miles refunded, stock restored, a `refund` ledger row written; issued vouchers are intentionally irreversible
+- 🚚 **Fulfilment state machine** — `pending → shipped → completed`, driven from the admin console's order tab; illegal transitions are rejected with 400; cancelled orders are excluded from every stat
+- 🌍 **Offset credibility** — carbon products carry a project name, certification standard and vintage (editable in admin, seeded for the tree product); the footprint page projects 10 years of fixation (22 kg/tree/year)
 - 📊 **Order history & live KPI dashboard** — past orders plus platform stats from `/api/stats`: total CO₂ offset (22 kg per redeemed tree), miles conversion rate, redemption count, and your personal flight footprint
-- 🛠️ **Admin console** — `/admin` product CRUD gated by an `ADMIN_PASSWORD` session, separate from member accounts; products with existing orders cannot be deleted
+- 📈 **Footprint page** — `/footprint` with monthly emission trend chart, latest-quarter report card, standing-tree count and the last 50 flight records
+- 🛠️ **Admin console** — `/admin` with product CRUD (including offset-project fields) and order management, gated by an `ADMIN_PASSWORD` session separate from member accounts; products with existing orders cannot be deleted
 - 🗄️ **Zero-config SQLite** — database is created, migrated and seeded automatically on first run
 
 ## Tech stack
@@ -108,18 +123,18 @@ These are simplified illustrative factors for demo purposes, not an official met
 
 ## Testing
 
-- **Unit (Vitest + Testing Library)** — 170 tests covering the carbon engine, airport coordinates & distance, the flight provider, auth helpers, Zod schemas, API route handlers (orders, carbon, flight, stats, admin), the proxy route guard and Zustand stores. `npm test`
-- **E2E (Playwright)** — 7 journeys against a production build with an isolated, freshly seeded SQLite database: register & login, carbon calculator result, flight-number import prefill, miles redemption with voucher QR code, order history, unauthenticated route guard, and the insufficient-balance settlement guard. First run needs `npx playwright install chromium`, then `npm run test:e2e`
+- **Unit (Vitest + Testing Library)** — 212 tests covering the carbon engine, airport coordinates & distance, the flight provider, auth helpers, Zod schemas, API route handlers (orders, cancellation, miles, carbon, flight, stats, admin), the ledger migration & backfill against a legacy schema, poster/footprint helpers, the proxy route guard and Zustand stores. `npm test`
+- **E2E (Playwright)** — 12 journeys against a production build with an isolated, freshly seeded SQLite database: register & login, carbon calculator result, flight-number import prefill, miles redemption with voucher QR code, order history, order cancellation with miles refund & ledger check, admin order fulfilment with illegal-transition guards, the footprint page (projection, chart, posters), unauthenticated route guard, and the insufficient-balance settlement guard. First run needs `npx playwright install chromium`, then `npm run test:e2e`
 
 ## Project structure
 
 ```
 src/
 ├── app/
-│   ├── (pages)/        # home, calculator, mall, orders, admin, login, register
-│   └── api/            # auth, products, orders, carbon, stats, admin route handlers
-├── components/         # feature components + shadcn/ui primitives
-├── lib/                # db, auth, carbon engine, airport coords, flight provider, zod schemas
+│   ├── (pages)/        # home, calculator, mall, orders, footprint, admin, login, register
+│   └── api/            # auth, products, orders (+ cancel), miles, carbon, stats, admin route handlers
+├── components/         # feature components (incl. SharePoster) + shadcn/ui primitives
+├── lib/                # db, auth, carbon engine, airport coords, flight provider, poster/footprint helpers, zod schemas
 ├── stores/             # zustand stores (user, cart, carbon)
 └── proxy.ts            # JWT route protection (Next.js 16 proxy convention)
 ```

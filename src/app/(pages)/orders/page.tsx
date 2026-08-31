@@ -23,8 +23,10 @@ interface Order {
   icon_type: string;
   category: string;
   mileage_cost: number;
+  quantity: number;
   status: string;
   voucher_code: string;
+  address?: string | null;
   created_at: string;
 }
 
@@ -113,10 +115,23 @@ export default function OrdersPage() {
 
       case 'bag':
         return (
-          <div className="p-4 bg-muted rounded-lg text-center">
-            <ShoppingBag className="h-8 w-8 text-accent mx-auto mb-2" />
-            <p className="text-sm font-medium text-primary">订单状态</p>
-            <Badge variant="secondary" className="mt-2">待发货</Badge>
+          <div className="space-y-3">
+            <div className="p-4 bg-muted rounded-lg text-center">
+              <ShoppingBag className="h-8 w-8 text-accent mx-auto mb-2" />
+              <p className="text-sm font-medium text-primary">订单状态</p>
+              <Badge variant="secondary" className="mt-2">
+                {(STATUS_MAP[order.status] || { label: order.status }).label}
+              </Badge>
+              <p className="text-xs text-muted-foreground mt-2">
+                我们将在 3-5 个工作日内发货
+              </p>
+            </div>
+            {order.address && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-xs font-medium mb-1">收货信息</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{order.address}</p>
+              </div>
+            )}
           </div>
         );
 
@@ -157,7 +172,12 @@ export default function OrdersPage() {
                         <Icon className="h-5 w-5 text-accent" />
                       </div>
                       <div>
-                        <p className="font-medium text-primary">{order.product_name}</p>
+                        <p className="font-medium text-primary">
+                          {order.product_name}
+                          {order.quantity > 1 && (
+                            <span className="text-muted-foreground"> × {order.quantity}</span>
+                          )}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(order.created_at).toLocaleString('zh-CN')}
                         </p>

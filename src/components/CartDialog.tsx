@@ -19,6 +19,7 @@ import { ShoppingCart, Trash2, Bike, Hotel, TreePine, ShoppingBag } from 'lucide
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface CartDialogProps {
   open: boolean;
@@ -32,6 +33,7 @@ interface VoucherData {
   icon_type: string;
   category: string;
   mileage_cost: number;
+  quantity?: number;
   new_balance: number;
 }
 
@@ -59,12 +61,16 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: item.id }),
+        body: JSON.stringify({
+          productId: item.id,
+          quantity: item.quantity,
+          address: item.address,
+        }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.error || '兑换失败');
+        toast.error(data.error || '兑换失败');
         return;
       }
 
@@ -76,7 +82,7 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
       setConfirmItem(null);
       setVoucher(data.data);
     } catch {
-      alert('兑换失败，请稍后重试');
+      toast.error('兑换失败，请稍后重试');
     } finally {
       setSettling(false);
     }
@@ -117,7 +123,9 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
           <DialogHeader>
             <DialogTitle>确认兑换</DialogTitle>
             <DialogDescription>
-              确认用 {confirmItem.mileage_cost.toLocaleString()} 里程兑换 {confirmItem.name}？
+              确认用 {(confirmItem.mileage_cost * confirmItem.quantity).toLocaleString()} 里程兑换{' '}
+              {confirmItem.name}
+              {confirmItem.quantity > 1 ? ` × ${confirmItem.quantity}` : ''}？
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -153,7 +161,8 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
             <div className="max-h-64 overflow-y-auto space-y-3">
               {items.map((item) => {
                 const Icon = ICON_MAP[item.icon_type] || ShoppingBag;
-                const canAfford = balance >= item.mileage_cost;
+                const itemTotal = item.mileage_cost * item.quantity;
+                const canAfford = balance >= itemTotal;
 
                 return (
                   <div
@@ -165,9 +174,15 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
                         <Icon className="h-4 w-4 text-accent" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">{item.name}</p>
+                        <p className="text-sm font-medium">
+                          {item.name}
+                          {item.quantity > 1 && (
+                            <span className="text-muted-foreground"> × {item.quantity}</span>
+                          )}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {item.mileage_cost.toLocaleString()} 里程
+                          {item.quantity > 1 && ` × ${item.quantity}`}
                         </p>
                       </div>
                     </div>
@@ -181,7 +196,7 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
                       </Button>
                       {!canAfford && (
                         <p className="text-xs text-destructive">
-                          里程不足（还差 {(item.mileage_cost - balance).toLocaleString()} 里程）
+                          里程不足（还差 {(itemTotal - balance).toLocaleString()} 里程）
                         </p>
                       )}
                       <Button

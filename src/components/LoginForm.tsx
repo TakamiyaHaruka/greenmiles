@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginSchema, type LoginInput } from '@/lib/schemas';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { FormField, FormAlert } from '@/components/form-fields';
 import { useUserStore } from '@/stores/userStore';
 
 export function LoginForm() {
@@ -57,45 +56,25 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">
-          邮箱 <span className="text-destructive">*</span>
-        </label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="your@email.com"
-          {...register('email')}
-          onBlur={() => {}}
-          className={cn(errors.email && 'border-destructive')}
-        />
-        {errors.email && (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
-        )}
-      </div>
+      <FormField
+        id="email"
+        label="邮箱"
+        type="email"
+        placeholder="your@email.com"
+        error={errors.email?.message}
+        registration={register('email')}
+      />
 
-      <div className="space-y-2">
-        <label htmlFor="password" className="text-sm font-medium">
-          密码 <span className="text-destructive">*</span>
-        </label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="至少 6 位"
-          {...register('password')}
-          onBlur={() => {}}
-          className={cn(errors.password && 'border-destructive')}
-        />
-        {errors.password && (
-          <p className="text-sm text-destructive">{errors.password.message}</p>
-        )}
-      </div>
+      <FormField
+        id="password"
+        label="密码"
+        type="password"
+        placeholder="至少 6 位"
+        error={errors.password?.message}
+        registration={register('password')}
+      />
 
-      {error && (
-        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
+      {error && <FormAlert variant="error">{error}</FormAlert>}
 
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading ? '登录中...' : '登录'}

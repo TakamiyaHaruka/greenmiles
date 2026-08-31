@@ -4,16 +4,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Bike, Hotel, TreePine, ShoppingBag } from 'lucide-react';
-
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  category: string;
-  mileage_cost: number;
-  stock: number;
-  icon_type: string;
-}
+import type { Product } from '@/lib/types';
 
 const CATEGORY_MAP: Record<string, { label: string; color: string }> = {
   virtual: { label: '虚拟卡券', color: 'bg-blue-100 text-blue-700' },

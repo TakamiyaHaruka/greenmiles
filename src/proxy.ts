@@ -7,16 +7,19 @@ const publicRoutes = [
   '/',
   '/login',
   '/register',
+  '/admin',
   '/api/auth/login',
   '/api/auth/register',
 ];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if the route is public
+  // /admin* is gated by its own ADMIN_PASSWORD session, not a user login
   const isPublicRoute = publicRoutes.some((route) => pathname === route) ||
-    pathname.startsWith('/api/auth/');
+    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/admin/');
 
   if (isPublicRoute) {
     return NextResponse.next();
@@ -24,34 +27,19 @@ export async function middleware(request: NextRequest) {
 
   // Get token from cookies
   const token = request.cookies.get('token')?.value;
-
-  if (!token) {
-    // Redirect to login if no token
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Verify token
-  const payload = await verifyJwt(token);
+  const payload = token ? await verifyJwt(token) : null;
 
   if (!payload) {
-    // Redirect to login if token is invalid
+    // API callers get a JSON 401; page visits are redirected to login
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Add user info to headers for downstream use
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-user-id', payload.userId.toString());
-  requestHeaders.set('x-user-email', payload.email);
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  return NextResponse.next();
 }
 
 export const config = {

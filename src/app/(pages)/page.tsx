@@ -10,37 +10,25 @@ import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailSheet } from '@/components/ProductDetailSheet';
 import { Plane, Leaf, TreePine, TrendingUp, BarChart3, Calculator, ShoppingBag, ArrowRight, Users, Globe, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { Product } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  category: string;
-  mileage_cost: number;
-  stock: number;
-  icon_type: string;
+interface Stats {
+  orderCount: number;
+  greenMilesSpent: number;
+  unspentMiles: number;
+  conversionRate: number;
+  totalCo2OffsetKg: number;
+  userCo2Kg: number;
+  monthly: Array<{ month: string; milesSpent: number; offsetKg: number }>;
 }
 
 const CHART_COLORS = ['#10B981', '#059669', '#047857', '#065f46'];
 
-const mockOffsetData = [
-  { month: '1月', offset: 12 },
-  { month: '2月', offset: 18 },
-  { month: '3月', offset: 25 },
-  { month: '4月', offset: 32 },
-  { month: '5月', offset: 28 },
-  { month: '6月', offset: 45 },
-];
-
-const mockConversionData = [
-  { name: '已兑换', value: 3200 },
-  { name: '未兑换', value: 6800 },
-];
-
 export default function HomePage() {
   const { user, isAuthenticated } = useUserStore();
   const [products, setProducts] = useState<Product[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -50,6 +38,26 @@ export default function HomePage() {
       .then((data) => setProducts((data.data || []).slice(0, 4)))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch('/api/stats')
+      .then((res) => res.json())
+      .then((data) => setStats(data.data || null))
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  const offsetChartData = (stats?.monthly || []).map((m) => ({
+    month: m.month,
+    offset: m.offsetKg,
+  }));
+
+  const conversionPieData = stats
+    ? [
+        { name: '已绿色兑换', value: stats.greenMilesSpent },
+        { name: '未兑换', value: stats.unspentMiles },
+      ].filter((entry) => entry.value > 0)
+    : [];
 
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -227,7 +235,9 @@ export default function HomePage() {
                 <Card className="border border-[#E2E8F0]">
                   <CardHeader className="pb-2">
                     <CardDescription>累计碳减排</CardDescription>
-                    <CardTitle className="text-3xl text-accent">160 kg</CardTitle>
+                    <CardTitle className="text-3xl text-accent">
+                      {Math.round(stats?.totalCo2OffsetKg ?? 0)} kg
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <TreePine className="h-4 w-4 text-muted-foreground" />
@@ -236,8 +246,22 @@ export default function HomePage() {
 
                 <Card className="border border-[#E2E8F0]">
                   <CardHeader className="pb-2">
+                    <CardDescription>我的飞行碳足迹</CardDescription>
+                    <CardTitle className="text-3xl text-accent">
+                      {(stats?.userCo2Kg ?? 0).toFixed(1)} kg
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Calculator className="h-4 w-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-[#E2E8F0]">
+                  <CardHeader className="pb-2">
                     <CardDescription>里程绿色转化率</CardDescription>
-                    <CardTitle className="text-3xl text-accent">32%</CardTitle>
+                    <CardTitle className="text-3xl text-accent">
+                      {Math.round((stats?.conversionRate ?? 0) * 100)}%
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -247,7 +271,9 @@ export default function HomePage() {
                 <Card className="border border-[#E2E8F0]">
                   <CardHeader className="pb-2">
                     <CardDescription>兑换次数</CardDescription>
-                    <CardTitle className="text-3xl text-accent">5</CardTitle>
+                    <CardTitle className="text-3xl text-accent">
+                      {stats?.orderCount ?? 0}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -278,44 +304,56 @@ export default function HomePage() {
                     <CardTitle className="text-base">月度碳减排趋势</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={mockOffsetData}>
-                          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip />
-                          <Bar dataKey="offset" fill="#10B981" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    {offsetChartData.length > 0 ? (
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={offsetChartData}>
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Bar dataKey="offset" fill="#10B981" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                        兑换植树商品后，这里将展示月度碳减排趋势
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
                 <Card className="border border-[#E2E8F0]">
                   <CardHeader>
-                    <CardTitle className="text-base">里程转化率</CardTitle>
+                    <CardTitle className="text-base">里程绿色转化</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-48 flex items-center justify-center">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={mockConversionData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={70}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            {mockConversionData.map((_, index) => (
-                              <Cell key={index} fill={CHART_COLORS[index]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
+                    {conversionPieData.length > 0 ? (
+                      <div className="h-48 flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={conversionPieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={70}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {conversionPieData.map((entry, index) => (
+                                <Cell key={entry.name} fill={CHART_COLORS[index]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                        暂无里程兑换数据
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

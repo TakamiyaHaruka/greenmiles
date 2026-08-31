@@ -6,6 +6,7 @@ import crypto from 'crypto';
 
 const CreateOrderSchema = z.object({
   productId: z.number().int().positive(),
+  quantity: z.number().int().min(1, '兑换数量至少为 1').max(10, '单次最多兑换 10 件').default(1),
   address: z.string().max(500, '地址不能超过 500 字').optional(),
 });
 
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message || '参数无效' }, { status: 400 });
     }
 
-    const { productId, address } = parsed.data;
+    const { productId, quantity, address } = parsed.data;
 
     // Transaction: deduct miles + create order
     const result = db.transaction(() => {
@@ -47,33 +48,45 @@ export async function POST(request: NextRequest) {
         throw new Error('PRODUCT_NOT_FOUND');
       }
 
-      if (product.stock <= 0) {
+      if (product.category === 'physical' && !address?.trim()) {
+        throw new Error('ADDRESS_REQUIRED');
+      }
+
+      if (product.stock < quantity) {
         throw new Error('OUT_OF_STOCK');
       }
 
-      if (user.miles_balance < product.mileage_cost) {
+      const totalCost = product.mileage_cost * quantity;
+
+      if (user.miles_balance < totalCost) {
         throw new Error('INSUFFICIENT_BALANCE');
       }
 
       // Deduct miles
-      db.prepare('UPDATE users SET miles_balance = miles_balance - ? WHERE id = ?').run(product.mileage_cost, user.id);
+      db.prepare('UPDATE users SET miles_balance = miles_balance - ? WHERE id = ?').run(totalCost, user.id);
 
       // Decrease stock
-      db.prepare('UPDATE products SET stock = stock - 1 WHERE id = ?').run(product.id);
+      db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(quantity, product.id);
 
       // Generate voucher
       const voucherCode = generateVoucherCode(product.icon_type);
 
+      // Physical goods await shipping; everything else is fulfilled instantly
+      const status = product.category === 'physical' ? 'pending' : 'completed';
+
       // Create order
       const orderResult = db.prepare(
-        'INSERT INTO orders (user_id, product_id, status, voucher_code, address) VALUES (?, ?, ?, ?, ?)'
-      ).run(user.id, product.id, 'completed', voucherCode, address || null);
+        'INSERT INTO orders (user_id, product_id, status, voucher_code, address, quantity) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(user.id, product.id, status, voucherCode, address || null, quantity);
 
       return {
         orderId: orderResult.lastInsertRowid,
         voucherCode,
         product,
-        newBalance: user.miles_balance - product.mileage_cost,
+        quantity,
+        totalCost,
+        status,
+        newBalance: user.miles_balance - totalCost,
       };
     })();
 
@@ -84,7 +97,9 @@ export async function POST(request: NextRequest) {
         product_name: result.product.name,
         icon_type: result.product.icon_type,
         category: result.product.category,
-        mileage_cost: result.product.mileage_cost,
+        mileage_cost: result.totalCost,
+        quantity: result.quantity,
+        status: result.status,
         new_balance: result.newBalance,
       },
     });
@@ -97,7 +112,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '商品不存在' }, { status: 404 });
     }
     if (message === 'OUT_OF_STOCK') {
-      return NextResponse.json({ error: '商品已售罄' }, { status: 400 });
+      return NextResponse.json({ error: '商品库存不足' }, { status: 400 });
+    }
+    if (message === 'ADDRESS_REQUIRED') {
+      return NextResponse.json({ error: '实体商品需要填写收货地址' }, { status: 400 });
     }
     if (message === 'INSUFFICIENT_BALANCE') {
       return NextResponse.json({ error: '里程余额不足' }, { status: 400 });
@@ -119,7 +137,8 @@ export async function GET(request: NextRequest) {
     }
 
     const orders = db.prepare(`
-      SELECT o.*, p.name as product_name, p.icon_type, p.category, p.mileage_cost
+      SELECT o.*, p.name as product_name, p.icon_type, p.category,
+             (p.mileage_cost * o.quantity) AS mileage_cost
       FROM orders o
       JOIN products p ON o.product_id = p.id
       WHERE o.user_id = ?

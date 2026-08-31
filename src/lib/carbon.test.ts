@@ -39,8 +39,8 @@ describe('PRESET_ROUTES', () => {
     expect(PRESET_ROUTES).toHaveLength(4);
   });
 
-  it('has correct distances', () => {
-    expect(PRESET_ROUTES[0]).toEqual({ from: '北京', to: '上海', distance: 1075 });
+  it('is defined as airport pairs (distances derive from airports.ts)', () => {
+    expect(PRESET_ROUTES[0]).toEqual({ from: 'PEK', to: 'SHA' });
   });
 });
 

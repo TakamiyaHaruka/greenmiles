@@ -1,11 +1,10 @@
 import { create } from 'zustand';
+import type { Product } from '@/lib/types';
 
-interface CartItem {
-  id: number;
-  name: string;
-  mileage_cost: number;
-  icon_type: string;
+// A product snapshot taken into the cart, plus per-line state
+interface CartItem extends Pick<Product, 'id' | 'name' | 'mileage_cost' | 'icon_type'> {
   quantity: number;
+  address?: string;
 }
 
 interface CartState {
@@ -26,7 +25,9 @@ export const useCartStore = create<CartState>((set, get) => ({
       if (existing) {
         return {
           items: state.items.map((i) =>
-            i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+            i.id === item.id
+              ? { ...i, quantity: i.quantity + 1, address: item.address ?? i.address }
+              : i
           ),
         };
       }

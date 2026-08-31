@@ -13,16 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Package } from 'lucide-react';
-
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  category: string;
-  mileage_cost: number;
-  stock: number;
-  icon_type: string;
-}
+import type { Product } from '@/lib/types';
 
 const CATEGORIES = [
   { value: 'all', label: 'All' },

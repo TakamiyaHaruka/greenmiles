@@ -60,8 +60,27 @@ describe('ProductCard', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it('renders redeem button', () => {
+  it('renders the detail action and live stock', () => {
+    render(<ProductCard product={mockProduct} variant="home" />);
+    expect(screen.getByText('查看详情')).toBeInTheDocument();
+    expect(screen.getByText('库存 100')).toBeInTheDocument();
+  });
+
+  it('keeps the existing default-card action outside the home page', () => {
     render(<ProductCard product={mockProduct} />);
     expect(screen.getByText('立即兑换')).toBeInTheDocument();
+    expect(screen.queryByText('库存 100')).not.toBeInTheDocument();
+  });
+
+  it('shows the exact shortage for a signed-in balance', () => {
+    render(<ProductCard product={mockProduct} balance={200} variant="home" />);
+    expect(screen.getByText('还差 1,000 里程')).toBeInTheDocument();
+  });
+
+  it('keeps unavailable products inspectable while showing their status', () => {
+    const onClick = vi.fn();
+    render(<ProductCard product={{ ...mockProduct, stock: 0 }} onClick={onClick} variant="home" />);
+    fireEvent.click(screen.getByRole('button', { name: /暂时无货/ }));
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });

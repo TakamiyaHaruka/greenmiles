@@ -1,392 +1,475 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import {
+  ArrowRight,
+  Calculator,
+  Gauge,
+  Leaf,
+  Plane,
+  RefreshCw,
+  ShoppingBag,
+  Sparkles,
+  TreePine,
+  Users,
+} from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { buttonVariants } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useCartStore } from '@/stores/cartStore';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailSheet } from '@/components/ProductDetailSheet';
-import { Plane, Leaf, TreePine, TrendingUp, BarChart3, Calculator, ShoppingBag, ArrowRight, Users, Globe, CheckCircle } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/lib/types';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-interface Stats {
-  orderCount: number;
-  greenMilesSpent: number;
-  unspentMiles: number;
-  conversionRate: number;
-  totalCo2OffsetKg: number;
-  userCo2Kg: number;
-  monthly: Array<{ month: string; milesSpent: number; offsetKg: number }>;
+type LoadState = 'loading' | 'success' | 'error';
+
+interface PersonalImpact {
+  flightCount: number;
+  totalCo2Kg: number;
+  myTrees: number;
 }
 
-const CHART_COLORS = ['#10B981', '#059669', '#047857', '#065f46'];
+interface PlatformStats {
+  orderCount: number;
+  greenMilesSpent: number;
+  totalCo2OffsetKg: number;
+}
+
+async function fetchProducts(): Promise<Product[]> {
+  const response = await fetch('/api/products');
+  if (!response.ok) throw new Error('products request failed');
+  const payload = await response.json();
+  return Array.isArray(payload.data) ? payload.data : [];
+}
+
+class SessionExpiredError extends Error {}
+
+async function fetchPersonalImpact(): Promise<PersonalImpact> {
+  const response = await fetch('/api/carbon');
+  if (response.status === 401) throw new SessionExpiredError('session expired');
+  if (!response.ok) throw new Error('personal request failed');
+  const payload = await response.json();
+  return payload.data as PersonalImpact;
+}
+
+async function fetchPlatformStats(): Promise<PlatformStats> {
+  const response = await fetch('/api/stats');
+  if (response.status === 401) throw new SessionExpiredError('session expired');
+  if (!response.ok) throw new Error('platform request failed');
+  const payload = await response.json();
+  return payload.data as PlatformStats;
+}
+
+function SectionHeading({
+  id,
+  eyebrow,
+  title,
+  description,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="max-w-2xl">
+      <p className="mb-2 text-xs font-bold tracking-[0.22em] text-emerald-700 uppercase">{eyebrow}</p>
+      <h2 id={id} className="text-2xl font-bold tracking-tight text-primary sm:text-3xl">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">{description}</p>
+    </div>
+  );
+}
+
+function SurfaceSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn('home-surface-light h-44 animate-pulse border', className)}
+      aria-hidden="true"
+    />
+  );
+}
 
 export default function HomePage() {
-  const { user, isAuthenticated } = useUserStore();
+  const { user, isAuthenticated, initializationStatus, clearUser, fetchUser } = useUserStore();
+  const clearCart = useCartStore((state) => state.clearCart);
   const [products, setProducts] = useState<Product[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [productsState, setProductsState] = useState<LoadState>('loading');
+  const [personalImpact, setPersonalImpact] = useState<PersonalImpact | null>(null);
+  const [personalState, setPersonalState] = useState<LoadState>('loading');
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+  const [platformState, setPlatformState] = useState<LoadState>('loading');
+  const [personalMemberId, setPersonalMemberId] = useState<number | null>(null);
+  const [platformMemberId, setPlatformMemberId] = useState<number | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const memberRequestId = useRef(0);
+
+  const isInitializing = initializationStatus === 'idle' || initializationStatus === 'loading';
+  const authenticationFailed = initializationStatus === 'error';
+  const activeMemberId = user?.id;
 
   useEffect(() => {
-    fetch('/api/products')
-      .then((res) => res.json())
-      .then((data) => setProducts((data.data || []).slice(0, 4)))
-      .catch(() => {});
+    let active = true;
+    void fetchProducts()
+      .then((data) => {
+        if (!active) return;
+        setProducts(data);
+        setProductsState('success');
+      })
+      .catch(() => {
+        if (!active) return;
+        setProducts([]);
+        setProductsState('error');
+      });
+    return () => { active = false; };
   }, []);
 
+  const startMemberDataRequest = useCallback((memberId: number) => {
+    const requestId = ++memberRequestId.current;
+    const isCurrentRequest = () => (
+      requestId === memberRequestId.current
+      && useUserStore.getState().initializationStatus === 'authenticated'
+      && useUserStore.getState().user?.id === memberId
+    );
+    const expireSession = (error: unknown) => {
+      if (!(error instanceof SessionExpiredError) || !isCurrentRequest()) return false;
+      memberRequestId.current += 1;
+      clearCart();
+      clearUser();
+      return true;
+    };
+
+    void fetchPersonalImpact()
+      .then((data) => {
+        if (!isCurrentRequest()) return;
+        setPersonalImpact(data);
+        setPersonalState('success');
+        setPersonalMemberId(memberId);
+      })
+      .catch((error: unknown) => {
+        if (expireSession(error) || !isCurrentRequest()) return;
+        setPersonalImpact(null);
+        setPersonalState('error');
+        setPersonalMemberId(memberId);
+      });
+
+    void fetchPlatformStats()
+      .then((data) => {
+        if (!isCurrentRequest()) return;
+        setPlatformStats(data);
+        setPlatformState('success');
+        setPlatformMemberId(memberId);
+      })
+      .catch((error: unknown) => {
+        if (expireSession(error) || !isCurrentRequest()) return;
+        setPlatformStats(null);
+        setPlatformState('error');
+        setPlatformMemberId(memberId);
+      });
+  }, [clearCart, clearUser]);
+
   useEffect(() => {
-    if (!isAuthenticated) return;
-    fetch('/api/stats')
-      .then((res) => res.json())
-      .then((data) => setStats(data.data || null))
-      .catch(() => {});
-  }, [isAuthenticated]);
+    if (initializationStatus !== 'authenticated' || activeMemberId == null) return;
+    startMemberDataRequest(activeMemberId);
+    return () => { memberRequestId.current += 1; };
+  }, [activeMemberId, initializationStatus, startMemberDataRequest]);
 
-  const offsetChartData = (stats?.monthly || []).map((m) => ({
-    month: m.month,
-    offset: m.offsetKg,
-  }));
+  const retryProducts = async () => {
+    setProductsState('loading');
+    try {
+      setProducts(await fetchProducts());
+      setProductsState('success');
+    } catch {
+      setProducts([]);
+      setProductsState('error');
+    }
+  };
 
-  const conversionPieData = stats
-    ? [
-        { name: '已绿色兑换', value: stats.greenMilesSpent },
-        { name: '未兑换', value: stats.unspentMiles },
-      ].filter((entry) => entry.value > 0)
-    : [];
+  const retryMemberData = () => {
+    if (!user || initializationStatus !== 'authenticated') return;
+    setPersonalMemberId(null);
+    setPlatformMemberId(null);
+    setPersonalState('loading');
+    setPlatformState('loading');
+    startMemberDataRequest(user.id);
+  };
 
-  const handleProductClick = (product: Product) => {
+  const personalDataPending = isAuthenticated && user?.id !== personalMemberId;
+  const platformDataPending = isAuthenticated && user?.id !== platformMemberId;
+
+  const featuredProducts = useMemo(() => {
+    const balance = initializationStatus === 'authenticated' ? user?.miles_balance : null;
+    return [...products]
+      .sort((left, right) => {
+        const leftRank = left.stock <= 0 ? 2 : balance != null && left.mileage_cost > balance ? 1 : 0;
+        const rightRank = right.stock <= 0 ? 2 : balance != null && right.mileage_cost > balance ? 1 : 0;
+        return leftRank - rightRank || left.mileage_cost - right.mileage_cost || left.id - right.id;
+      })
+      .slice(0, 4);
+  }, [initializationStatus, products, user?.miles_balance]);
+
+  const openProduct = (product: Product) => {
     setSelectedProduct(product);
     setSheetOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <section className="bg-primary text-primary-foreground py-12">
-        <div className="mx-auto max-w-[1280px] px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Leaf className="h-8 w-8 text-accent" />
-            <h1 className="text-4xl font-bold">GreenMiles</h1>
+    <div className="home-page">
+      <section className="px-4 pt-10 pb-14 sm:pt-16 sm:pb-20">
+        <div className="mx-auto grid max-w-[1280px] items-stretch gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="flex flex-col justify-center py-4">
+            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-700/15 bg-white/60 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+              <Leaf className="h-3.5 w-3.5" aria-hidden="true" />
+              绿色里程，真实选择
+            </div>
+            <h1 className="max-w-3xl text-4xl leading-tight font-bold tracking-[-0.04em] text-primary sm:text-5xl lg:text-6xl">
+              让飞过的里程，
+              <span className="text-emerald-700">长出新的风景。</span>
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+              用现有里程发现绿色好物，也可以先记录一段航程，了解自己的飞行碳足迹。
+            </p>
+            <div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row">
+              <Link href="/mall" className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5')}>
+                <ShoppingBag aria-hidden="true" />
+                探索绿色好物
+                <ArrowRight aria-hidden="true" />
+              </Link>
+              <Link
+                href="/calculator"
+                className={cn(buttonVariants({ size: 'lg', variant: 'outline' }), 'h-11 bg-background/55 px-5')}
+              >
+                <Calculator aria-hidden="true" />
+                计算飞行碳排放
+              </Link>
+            </div>
           </div>
-          <p className="text-lg text-primary-foreground/80 mb-8">
-            用飞行里程兑换绿色商品，为地球减碳
-          </p>
-          {isAuthenticated ? (
-            <div className="flex flex-col items-center gap-4">
-              <Badge variant="secondary" className="text-lg px-6 py-2">
-                <Plane className="h-5 w-5 mr-2" />
-                {user?.miles_balance.toLocaleString()} 里程
-              </Badge>
-              <p className="text-primary-foreground/60">
-                欢迎回来，{user?.email}
-              </p>
+
+          <div className="home-member-card flex min-h-72 flex-col justify-between rounded-[1.75rem] border p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold tracking-[0.2em] text-white/65 uppercase">GreenMiles Member</p>
+                <p className="mt-2 text-sm text-white/70">每一笔绿色兑换，都从可用里程开始</p>
+              </div>
+              <Sparkles className="h-6 w-6 text-emerald-300" aria-hidden="true" />
+            </div>
+
+            {isInitializing ? (
+              <div className="space-y-3" aria-label="正在确认会员状态">
+                <div className="h-4 w-24 animate-pulse rounded bg-white/20" />
+                <div className="h-12 w-48 animate-pulse rounded bg-white/20" />
+                <div className="h-4 w-36 animate-pulse rounded bg-white/20" />
+              </div>
+            ) : authenticationFailed ? (
+              <div>
+                <p className="text-xl font-semibold">暂时无法确认会员状态</p>
+                <p className="mt-2 text-sm text-white/70">没有把连接失败误显示为游客；请重试。</p>
+                <Button variant="secondary" className="mt-5" onClick={() => void fetchUser()}>
+                  <RefreshCw aria-hidden="true" /> 重试
+                </Button>
+              </div>
+            ) : isAuthenticated && user ? (
+              <div>
+                <p className="text-sm text-white/65">可用里程</p>
+                <p className="mt-1 break-all text-4xl font-bold tracking-tight sm:text-5xl">
+                  {user.miles_balance.toLocaleString()}
+                </p>
+                <p className="mt-4 truncate text-sm text-white/70" title={user.email}>{user.email}</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-2xl font-semibold">从 10,000 演示里程开始</p>
+                <p className="mt-2 text-sm leading-6 text-white/70">注册后即可体验完整兑换流程；首页精选商品无需登录即可浏览。</p>
+                <Link href="/register" className={cn(buttonVariants({ variant: 'secondary' }), 'mt-5')}>
+                  注册领取 10,000 演示里程
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-14 sm:py-18" aria-labelledby="featured-products-title">
+        <div className="mx-auto max-w-[1280px]">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <p className="mb-2 text-xs font-bold tracking-[0.22em] text-emerald-700 uppercase">Marketplace</p>
+              <h2 id="featured-products-title" className="text-2xl font-bold tracking-tight text-primary sm:text-3xl">
+                精选绿色好物
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">有货商品优先；登录后会优先展示当前余额可兑换的选择。</p>
+            </div>
+            <Link href="/mall" className={cn(buttonVariants({ variant: 'ghost' }))}>
+                  {isAuthenticated ? '查看全部商品' : '登录后查看全部商品'} <ArrowRight aria-hidden="true" />
+            </Link>
+          </div>
+
+          {productsState === 'loading' ? (
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" aria-label="商品加载中">
+              {[0, 1, 2, 3].map((item) => <SurfaceSkeleton key={item} className="h-72" />)}
+            </div>
+          ) : productsState === 'error' ? (
+            <div className="home-surface-heavy mt-8 flex min-h-48 flex-col items-center justify-center border p-6 text-center">
+              <p className="font-medium text-primary">商品暂时没有加载成功</p>
+              <p className="mt-1 text-sm text-muted-foreground">请检查连接后重试，页面不会用示例商品代替真实库存。</p>
+              <Button variant="outline" className="mt-4" onClick={retryProducts}>
+                <RefreshCw aria-hidden="true" /> 重试
+              </Button>
+            </div>
+          ) : featuredProducts.length === 0 ? (
+            <div className="home-surface-heavy mt-8 flex min-h-48 items-center justify-center border p-6 text-muted-foreground">
+              暂无可展示商品，请稍后再来。
             </div>
           ) : (
-            <div className="flex gap-4 justify-center">
-              <Link href="/register" className={cn(buttonVariants({ size: 'lg' }))}>
-                开始旅程
-              </Link>
-              {/* <Link href="/login" className={cn(buttonVariants({ size: 'lg', variant: 'outline' }), 'bg-transparent! text-primary-foreground! border-primary-foreground! hover:bg-primary-foreground! hover:text-primary!')}>
-                登录
-              </Link> */}
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  balance={initializationStatus === 'authenticated' ? user?.miles_balance : null}
+                  variant="home"
+                  onClick={() => openProduct(product)}
+                />
+              ))}
             </div>
           )}
         </div>
       </section>
 
-      {/* How It Works - only for unauthenticated users */}
-      {!isAuthenticated && (
-        <>
-          {/* How It Works */}
-          <section className="py-16">
-            <div className="mx-auto max-w-[1280px] px-4">
-              <div className="text-center mb-12">
-                <h2 className="text-2xl font-bold text-primary mb-2">如何参与</h2>
-                <p className="text-muted-foreground">四步开启你的绿色飞行之旅</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { icon: Calculator, title: '计算碳排放', desc: '输入航班信息，了解你的飞行碳足迹', step: '01' },
-                  { icon: Plane, title: '获取绿色里程', desc: '注册即赠 10,000 里程，每次飞行可积累', step: '02' },
-                  { icon: ShoppingBag, title: '兑换环保商品', desc: '用里程兑换骑行卡、植树公益等绿色商品', step: '03' },
-                  { icon: TreePine, title: '为地球减碳', desc: '每一次兑换都是一份对地球的承诺', step: '04' },
-                ].map((item, index) => (
-                  <div key={item.step} className="relative">
-                    <Card className="border border-[#E2E8F0] h-full">
-                      <CardContent className="pt-6 pb-6 text-center">
-                        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
-                          <item.icon className="h-7 w-7 text-accent" />
-                        </div>
-                        <span className="inline-block mb-2 text-xs font-bold text-accent bg-accent/10 px-2.5 py-0.5 rounded-full">
-                          STEP {item.step}
-                        </span>
-                        <h3 className="font-semibold text-primary mb-1">{item.title}</h3>
-                        <p className="text-xs text-muted-foreground">{item.desc}</p>
-                      </CardContent>
-                    </Card>
-                    {index < 3 && (
-                      <div className="hidden lg:flex absolute top-1/2 -right-3 z-10 -translate-y-1/2">
-                        <ArrowRight className="h-5 w-5 text-accent/40" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* <div className="text-center mt-10">
-                <Link href="/register" className={cn(buttonVariants({ size: 'lg' }))}>
-                  立即注册
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Link>
-              </div> */}
-            </div>
-          </section>
+      <section className="px-4 py-14 sm:py-18" aria-labelledby="personal-summary-title">
+        <div className="mx-auto max-w-[1280px]">
+          <SectionHeading
+            id="personal-summary-title"
+            eyebrow="My journey"
+            title="我的绿色旅程"
+            description="这里只展示当前账户的余额、已保存航班与有效碳抵消商品记录，不混入平台数据。"
+          />
 
-          {/* About & Eco Tips */}
-          <section className="py-16 bg-muted/30">
-            <div className="mx-auto max-w-[1280px] px-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                {/* About GreenMiles */}
-                <div>
-                  <h2 className="text-2xl font-bold text-primary mb-4">关于 GreenMiles</h2>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">
-                    GreenMiles 致力于将飞行里程转化为绿色行动。我们相信，每一次飞行都可以成为保护地球的机会。
-                    通过将里程兑换为环保商品和碳抵消项目，让旅行者在探索世界的同时，也为地球的可持续发展贡献力量。
+          {isInitializing ? (
+            <div className="mt-8 grid gap-4 md:grid-cols-3" aria-label="个人数据加载中">
+              {[0, 1, 2].map((item) => <SurfaceSkeleton key={item} />)}
+            </div>
+          ) : authenticationFailed ? (
+            <div className="home-surface-heavy mt-8 flex flex-col items-start justify-between gap-5 border p-6 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-lg font-semibold text-primary">会员状态暂时无法确认</h3>
+                <p className="mt-1 text-sm text-muted-foreground">连接失败不会被当作退出登录。</p>
+              </div>
+              <Button variant="outline" onClick={() => void fetchUser()}>
+                <RefreshCw aria-hidden="true" /> 重试
+              </Button>
+            </div>
+          ) : !isAuthenticated ? (
+            <div className="home-surface-heavy mt-8 flex flex-col items-start justify-between gap-5 border p-6 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-lg font-semibold text-primary">登录后回看你的真实记录</h3>
+                <p className="mt-1 text-sm text-muted-foreground">游客状态不会显示虚构的个人成果。</p>
+              </div>
+              <Link href="/login" className={cn(buttonVariants({ variant: 'outline' }))}>登录查看</Link>
+            </div>
+          ) : personalDataPending || personalState === 'loading' ? (
+            <div className="mt-8 grid gap-4 md:grid-cols-3" aria-label="个人数据加载中">
+              {[0, 1, 2].map((item) => <SurfaceSkeleton key={item} />)}
+            </div>
+          ) : personalState === 'error' ? (
+            <div className="home-surface-heavy mt-8 flex flex-col items-start justify-between gap-5 border p-6 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="font-semibold text-primary">个人数据暂时无法读取</h3>
+                <p className="mt-1 text-sm text-muted-foreground">没有把失败误显示为零；你可以单独重试。</p>
+              </div>
+              <Button variant="outline" onClick={retryMemberData}>
+                <RefreshCw aria-hidden="true" /> 重试
+              </Button>
+            </div>
+          ) : personalImpact ? (
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {[
+                { icon: Plane, label: '已保存航班', value: personalImpact.flightCount.toLocaleString(), unit: '段' },
+                { icon: Gauge, label: '飞行碳足迹', value: personalImpact.totalCo2Kg.toLocaleString(), unit: 'kg CO₂' },
+                { icon: TreePine, label: '支持树量', value: personalImpact.myTrees.toLocaleString(), unit: '棵*' },
+              ].map((item) => (
+                <div key={item.label} className="home-surface-light border p-5 sm:p-6">
+                  <item.icon className="h-5 w-5 text-emerald-700" aria-hidden="true" />
+                  <p className="mt-5 text-sm text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-3xl font-bold text-primary">
+                    {item.value} <span className="text-sm font-medium text-muted-foreground">{item.unit}</span>
                   </p>
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { value: '10,000+', label: '注册用户', icon: Users },
-                      { value: '500 吨', label: 'CO₂ 减排', icon: Globe },
-                      { value: '4 类', label: '绿色商品', icon: ShoppingBag },
-                    ].map((stat) => (
-                      <Card key={stat.label} className="border border-[#E2E8F0] text-center">
-                        <CardContent className="pt-4 pb-4">
-                          <stat.icon className="h-5 w-5 text-accent mx-auto mb-2" />
-                          <p className="text-lg font-bold text-primary">{stat.value}</p>
-                          <p className="text-xs text-muted-foreground">{stat.label}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
                 </div>
+              ))}
+              <p className="text-xs text-muted-foreground md:col-span-3">* 支持树量沿用现有演示口径：有效碳抵消商品订单数量。</p>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
-                {/* Eco Tips */}
-                <div>
-                  <h2 className="text-2xl font-bold text-primary mb-4">飞行减碳小贴士</h2>
-                  <div className="space-y-4">
-                    {[
-                      '选择直飞航班可减少约 20% 碳排放，中途转机的起降阶段消耗最多燃料',
-                      '经济舱碳足迹仅为头等舱的 1/4，因为座位越少，人均排放越高',
-                      '轻装出行，每减少 1kg 行李可降低约 0.01kg 碳排放',
-                      '选择新型节能机型（如 A320neo、B787）可降低 15-30% 碳排放',
-                    ].map((tip, index) => (
-                      <div key={index} className="flex gap-3 p-4 rounded-xl bg-background border border-[#E2E8F0]">
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 mt-0.5">
-                          <CheckCircle className="h-4 w-4 text-accent" />
-                        </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{tip}</p>
-                      </div>
-                    ))}
-                  </div>
+      <section className="px-4 py-14 sm:py-18" aria-labelledby="platform-title">
+        <div className="mx-auto max-w-[1280px]">
+          <SectionHeading
+            id="platform-title"
+            eyebrow="Platform overview"
+            title="GreenMiles 平台概览"
+            description="以下指标均为全平台口径，与上方个人记录分开；数据来自现有平台统计服务。"
+          />
+
+          {authenticationFailed ? (
+            <div className="home-surface-light mt-8 border p-6 text-sm text-muted-foreground">
+              会员状态确认失败，平台统计暂不加载；可在上方重试。
+            </div>
+          ) : !isAuthenticated && !isInitializing ? (
+            <div className="home-surface-light mt-8 border p-6 text-sm text-muted-foreground">
+              平台实时统计需要登录后读取；这里不使用硬编码示例数值。
+            </div>
+          ) : isInitializing || platformDataPending || platformState === 'loading' ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-3" aria-label="平台数据加载中">
+              {[0, 1, 2].map((item) => <SurfaceSkeleton key={item} className="h-36" />)}
+            </div>
+          ) : platformState === 'error' ? (
+            <div className="home-surface-light mt-8 flex flex-col items-start justify-between gap-4 border p-6 sm:flex-row sm:items-center">
+              <p className="text-sm text-muted-foreground">平台统计暂时不可用，个人数据不受影响。</p>
+              <Button variant="outline" onClick={retryMemberData}>
+                <RefreshCw aria-hidden="true" /> 重试
+              </Button>
+            </div>
+          ) : platformStats ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              {[
+                { icon: Users, label: '全平台有效兑换', value: platformStats.orderCount.toLocaleString(), unit: '笔' },
+                { icon: ShoppingBag, label: '全平台绿色兑换', value: platformStats.greenMilesSpent.toLocaleString(), unit: '里程' },
+                { icon: TreePine, label: '全平台年度估算减排', value: platformStats.totalCo2OffsetKg.toLocaleString(), unit: 'kg CO₂' },
+              ].map((item) => (
+                <div key={item.label} className="home-surface-light border p-5">
+                  <item.icon className="h-5 w-5 text-emerald-700" aria-hidden="true" />
+                  <p className="mt-4 text-sm text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">{item.value} <span className="text-xs font-medium text-muted-foreground">{item.unit}</span></p>
                 </div>
-              </div>
+              ))}
             </div>
-          </section>
+          ) : null}
+        </div>
+      </section>
 
-          {/* Bottom CTA */}
-          <section className="py-12 bg-primary text-primary-foreground">
-            <div className="mx-auto max-w-[1280px] px-4 text-center">
-              <h2 className="text-2xl font-bold mb-3">加入 GreenMiles，让每一次飞行都有意义</h2>
-              <p className="text-primary-foreground/70 mb-6">
-                注册即赠 10,000 绿色里程，开启你的低碳飞行之旅
-              </p>
-              <Link href="/register" className={cn(buttonVariants({ size: 'lg' }))}>
-                免费注册
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Link>
-            </div>
-          </section>
-        </>
-      )}
-
-      {isAuthenticated && (
-        <>
-          {/* KPI Dashboard */}
-          <section className="py-8">
-            <div className="mx-auto max-w-[1280px] px-4">
-              <h2 className="text-xl font-bold text-primary mb-4">数据看板</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader className="pb-2">
-                    <CardDescription>里程余额</CardDescription>
-                    <CardTitle className="text-3xl text-accent">
-                      {user?.miles_balance.toLocaleString()}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Plane className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader className="pb-2">
-                    <CardDescription>累计碳减排</CardDescription>
-                    <CardTitle className="text-3xl text-accent">
-                      {Math.round(stats?.totalCo2OffsetKg ?? 0)} kg
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <TreePine className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader className="pb-2">
-                    <CardDescription>我的飞行碳足迹</CardDescription>
-                    <CardTitle className="text-3xl text-accent">
-                      {(stats?.userCo2Kg ?? 0).toFixed(1)} kg
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Calculator className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader className="pb-2">
-                    <CardDescription>里程绿色转化率</CardDescription>
-                    <CardTitle className="text-3xl text-accent">
-                      {Math.round((stats?.conversionRate ?? 0) * 100)}%
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader className="pb-2">
-                    <CardDescription>兑换次数</CardDescription>
-                    <CardTitle className="text-3xl text-accent">
-                      {stats?.orderCount ?? 0}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-
-                <Link href="/calculator">
-                  <Card className="border border-[#E2E8F0] hover:shadow-md transition-shadow cursor-pointer">
-                    <CardHeader className="pb-2">
-                      <CardDescription>碳排放计算器</CardDescription>
-                      <CardTitle className="text-lg text-accent">开始计算</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Plane className="h-4 w-4 text-muted-foreground" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          {/* Charts */}
-          <section className="pb-8">
-            <div className="mx-auto max-w-[1280px] px-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader>
-                    <CardTitle className="text-base">月度碳减排趋势</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {offsetChartData.length > 0 ? (
-                      <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={offsetChartData}>
-                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Bar dataKey="offset" fill="#10B981" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                        兑换植树商品后，这里将展示月度碳减排趋势
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-[#E2E8F0]">
-                  <CardHeader>
-                    <CardTitle className="text-base">里程绿色转化</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {conversionPieData.length > 0 ? (
-                      <div className="h-48 flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={conversionPieData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={50}
-                              outerRadius={70}
-                              dataKey="value"
-                              stroke="none"
-                            >
-                              {conversionPieData.map((entry, index) => (
-                                <Cell key={entry.name} fill={CHART_COLORS[index]} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                        暂无里程兑换数据
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </section>
-
-          {/* Recommended Products */}
-          <section className="pb-16">
-            <div className="mx-auto max-w-[1280px] px-4">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-primary">推荐商品</h2>
-                <Link href="/mall" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-                  查看全部
-                </Link>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onClick={() => handleProductClick(product)}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
-        </>
-      )}
+      <section className="px-4 pt-8 pb-20">
+        <div className="home-surface-heavy mx-auto flex max-w-[1280px] flex-col justify-between gap-6 border p-6 sm:p-8 lg:flex-row lg:items-center">
+          <div>
+            <p className="text-xs font-bold tracking-[0.2em] text-emerald-700 uppercase">Next step</p>
+            <h2 className="mt-2 text-2xl font-bold text-primary">回看每一段飞行留下的足迹</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              查看已保存的航班、月度趋势与季度分析；“我的成果”将在后续阶段接入完整汇总。
+            </p>
+          </div>
+          <Link href="/footprint" className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5')}>
+            查看我的碳足迹 <ArrowRight aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
 
       <ProductDetailSheet
         product={selectedProduct}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
+        balance={initializationStatus === 'authenticated' ? user?.miles_balance : null}
+        variant="home"
       />
     </div>
   );

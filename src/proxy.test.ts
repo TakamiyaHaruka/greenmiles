@@ -24,7 +24,7 @@ describe('proxy (route guard)', () => {
   });
 
   it('lets public routes pass through', async () => {
-    for (const path of ['/', '/login', '/register', '/admin', '/api/auth/login', '/api/auth/register']) {
+    for (const path of ['/', '/login', '/register', '/admin', '/api/auth/login', '/api/auth/register', '/api/products']) {
       const res = await proxy(makeRequest(path));
       expect(res.status).toBe(200);
     }

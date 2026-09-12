@@ -12,6 +12,7 @@ describe('useUserStore', () => {
     const state = useUserStore.getState();
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
+    expect(state.initializationStatus).toBe('idle');
   });
 
   it('setUser sets user and isAuthenticated', () => {
@@ -19,6 +20,7 @@ describe('useUserStore', () => {
     const state = useUserStore.getState();
     expect(state.user).toEqual(mockUser);
     expect(state.isAuthenticated).toBe(true);
+    expect(state.initializationStatus).toBe('authenticated');
   });
 
   it('clearUser resets to initial state', () => {
@@ -27,6 +29,7 @@ describe('useUserStore', () => {
     const state = useUserStore.getState();
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
+    expect(state.initializationStatus).toBe('guest');
   });
 
   it('updateMilesBalance updates balance on existing user', () => {
@@ -55,6 +58,7 @@ describe('useUserStore', () => {
       const state = useUserStore.getState();
       expect(state.user).toEqual(mockUser);
       expect(state.isAuthenticated).toBe(true);
+      expect(state.initializationStatus).toBe('authenticated');
     });
 
     it('clears user on non-ok response', async () => {
@@ -68,16 +72,41 @@ describe('useUserStore', () => {
       const state = useUserStore.getState();
       expect(state.user).toBeNull();
       expect(state.isAuthenticated).toBe(false);
+      expect(state.initializationStatus).toBe('guest');
     });
 
-    it('clears user on network error', async () => {
+    it('keeps the known user and exposes a retryable state on network error', async () => {
       useUserStore.getState().setUser(mockUser);
       vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
 
       await useUserStore.getState().fetchUser();
       const state = useUserStore.getState();
-      expect(state.user).toBeNull();
-      expect(state.isAuthenticated).toBe(false);
+      expect(state.user).toEqual(mockUser);
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.initializationStatus).toBe('error');
+    });
+
+    it('does not turn a server failure into a guest session', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+
+      await useUserStore.getState().fetchUser();
+
+      expect(useUserStore.getState().initializationStatus).toBe('error');
+    });
+
+    it('ignores an initialization response after a newer login wins', async () => {
+      let resolveFetch!: (response: Response) => void;
+      vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => {
+        resolveFetch = resolve;
+      }));
+
+      const initialization = useUserStore.getState().fetchUser();
+      useUserStore.getState().setUser(mockUser);
+      resolveFetch({ ok: false, status: 401 } as Response);
+      await initialization;
+
+      expect(useUserStore.getState().user).toEqual(mockUser);
+      expect(useUserStore.getState().initializationStatus).toBe('authenticated');
     });
   });
 });

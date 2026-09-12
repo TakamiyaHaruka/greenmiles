@@ -9,27 +9,37 @@ interface User {
 interface UserState {
   user: User | null;
   isAuthenticated: boolean;
+  initializationStatus: 'idle' | 'loading' | 'authenticated' | 'guest' | 'error';
   setUser: (user: User) => void;
   clearUser: () => void;
   updateMilesBalance: (balance: number) => void;
   fetchUser: () => Promise<void>;
 }
 
+let authRequestGeneration = 0;
+
 export const useUserStore = create<UserState>((set) => ({
   user: null,
   isAuthenticated: false,
+  initializationStatus: 'idle',
 
-  setUser: (user) =>
+  setUser: (user) => {
+    authRequestGeneration += 1;
     set({
       user,
       isAuthenticated: true,
-    }),
+      initializationStatus: 'authenticated',
+    });
+  },
 
-  clearUser: () =>
+  clearUser: () => {
+    authRequestGeneration += 1;
     set({
       user: null,
       isAuthenticated: false,
-    }),
+      initializationStatus: 'guest',
+    });
+  },
 
   updateMilesBalance: (balance) =>
     set((state) => ({
@@ -37,25 +47,31 @@ export const useUserStore = create<UserState>((set) => ({
     })),
 
   fetchUser: async () => {
+    const requestGeneration = ++authRequestGeneration;
+    set({ initializationStatus: 'loading' });
     try {
       const response = await fetch('/api/user');
+      if (requestGeneration !== authRequestGeneration) return;
       if (response.ok) {
         const { data } = await response.json();
+        if (requestGeneration !== authRequestGeneration) return;
         set({
           user: data.user,
           isAuthenticated: true,
+          initializationStatus: 'authenticated',
         });
-      } else {
+      } else if (response.status === 401 || response.status === 404) {
         set({
           user: null,
           isAuthenticated: false,
+          initializationStatus: 'guest',
         });
+      } else {
+        set({ initializationStatus: 'error' });
       }
     } catch {
-      set({
-        user: null,
-        isAuthenticated: false,
-      });
+      if (requestGeneration !== authRequestGeneration) return;
+      set({ initializationStatus: 'error' });
     }
   },
 }));

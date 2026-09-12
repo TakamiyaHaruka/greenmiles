@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 interface CartDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  variant?: 'default' | 'home';
 }
 
 interface VoucherData {
@@ -44,9 +45,9 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   bag: ShoppingBag,
 };
 
-export function CartDialog({ open, onOpenChange }: CartDialogProps) {
+export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDialogProps) {
   const { items, removeItem, totalMiles } = useCartStore();
-  const { user, updateMilesBalance } = useUserStore();
+  const { user, isAuthenticated, updateMilesBalance } = useUserStore();
   const router = useRouter();
   const balance = user?.miles_balance ?? 0;
   const total = totalMiles();
@@ -100,11 +101,16 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
     router.push('/orders');
   };
 
+  const handleSignIn = () => {
+    onOpenChange(false);
+    router.push('/login?from=/');
+  };
+
   // Voucher display dialog
   if (voucher) {
     return (
       <Dialog open={true} onOpenChange={() => setVoucher(null)}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface')}>
           <VoucherDisplay
             voucher={voucher}
             onContinueShopping={handleContinueShopping}
@@ -119,7 +125,7 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
   if (confirmItem) {
     return (
       <Dialog open={true} onOpenChange={() => setConfirmItem(null)}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface')}>
           <DialogHeader>
             <DialogTitle>确认兑换</DialogTitle>
             <DialogDescription>
@@ -143,7 +149,7 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-accent" />
@@ -162,7 +168,7 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
               {items.map((item) => {
                 const Icon = ICON_MAP[item.icon_type] || ShoppingBag;
                 const itemTotal = item.mileage_cost * item.quantity;
-                const canAfford = balance >= itemTotal;
+                const canAfford = isAuthenticated && balance >= itemTotal;
 
                 return (
                   <div
@@ -189,12 +195,16 @@ export function CartDialog({ open, onOpenChange }: CartDialogProps) {
                     <div className="flex flex-col items-end gap-1">
                       <Button
                         size="sm"
-                        disabled={!canAfford}
-                        onClick={() => setConfirmItem(item)}
+                        disabled={isAuthenticated && !canAfford}
+                        onClick={() => isAuthenticated ? setConfirmItem(item) : handleSignIn()}
                       >
-                        结算
+                        {isAuthenticated ? '结算' : '登录后兑换'}
                       </Button>
-                      {!canAfford && (
+                      {!isAuthenticated ? (
+                        <p className="max-w-32 text-right text-xs text-muted-foreground">
+                          登录后查看余额
+                        </p>
+                      ) : !canAfford && (
                         <p className="text-xs text-destructive">
                           里程不足（还差 {(itemTotal - balance).toLocaleString()} 里程）
                         </p>

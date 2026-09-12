@@ -10,6 +10,8 @@ const publicRoutes = [
   '/admin',
   '/api/auth/login',
   '/api/auth/register',
+  // The public home page renders the live read-only catalog for guests.
+  '/api/products',
 ];
 
 export async function proxy(request: NextRequest) {

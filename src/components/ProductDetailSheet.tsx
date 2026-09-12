@@ -16,11 +16,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingCart, Bike, Hotel, TreePine, ShoppingBag } from 'lucide-react';
 import type { Product } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 interface ProductDetailSheetProps {
   product: Product | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  balance?: number | null;
+  variant?: 'default' | 'home';
 }
 
 interface AddressForm {
@@ -52,6 +55,8 @@ export function ProductDetailSheet({
   product,
   open,
   onOpenChange,
+  balance,
+  variant = 'default',
 }: ProductDetailSheetProps) {
   const { addItem } = useCartStore();
   const {
@@ -66,6 +71,8 @@ export function ProductDetailSheet({
   const Icon = ICON_MAP[product.icon_type] || ShoppingBag;
   const isPhysical = product.category === 'physical';
   const terms = TERMS_MAP[product.icon_type];
+  const outOfStock = product.stock <= 0;
+  const missingMiles = balance == null ? 0 : Math.max(product.mileage_cost - balance, 0);
 
   const onSubmit = (data: AddressForm) => {
     addItem({
@@ -80,6 +87,7 @@ export function ProductDetailSheet({
   };
 
   const handleAddToCart = () => {
+    if (outOfStock) return;
     if (isPhysical) {
       handleSubmit(onSubmit)();
     } else {
@@ -95,7 +103,10 @@ export function ProductDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md">
+      <SheetContent
+        side="right"
+        className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface')}
+      >
         <SheetHeader>
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center">
@@ -120,9 +131,15 @@ export function ProductDetailSheet({
               {product.mileage_cost.toLocaleString()} 里程
             </span>
             <span className="text-sm text-muted-foreground">
-              库存: {product.stock}
+              {outOfStock ? '暂时无货' : `库存: ${product.stock}`}
             </span>
           </div>
+
+          {missingMiles > 0 && !outOfStock && (
+            <p className="rounded-lg bg-destructive/8 px-3 py-2 text-xs text-destructive">
+              当前还差 {missingMiles.toLocaleString()} 里程；可先加入购物车，余额充足后逐项结算。
+            </p>
+          )}
 
           <Separator />
 
@@ -193,9 +210,9 @@ export function ProductDetailSheet({
         </div>
 
         <SheetFooter>
-          <Button className="w-full" onClick={handleAddToCart}>
+          <Button className="w-full" onClick={handleAddToCart} disabled={outOfStock}>
             <ShoppingCart className="h-4 w-4 mr-2" />
-            加入购物车
+            {outOfStock ? '暂时无货' : '加入购物车'}
           </Button>
         </SheetFooter>
       </SheetContent>

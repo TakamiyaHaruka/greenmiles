@@ -30,7 +30,7 @@ interface ProductCardProps {
   product: Product;
   onClick?: () => void;
   balance?: number | null;
-  variant?: 'default' | 'home';
+  variant?: 'default' | 'home' | 'journey';
 }
 
 export function ProductCard({
@@ -56,14 +56,14 @@ export function ProductCard({
     <Card
       className={cn(
         'group gap-0 rounded-2xl border py-0 transition-shadow hover:shadow-md',
-        variant === 'home' ? 'home-surface-light' : 'border-[#E2E8F0] shadow-sm'
+        variant === 'home' ? 'home-surface-light' : variant === 'journey' ? 'journey-surface-light' : 'border-[#E2E8F0] shadow-sm'
       )}
     >
       <button
         type="button"
         className="cursor-pointer text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={onClick}
-        aria-label={variant === 'home' ? `${product.name}，${availability}，查看详情` : `${product.name}，立即兑换`}
+        aria-label={variant !== 'default' ? `${product.name}，${availability}，查看详情` : `${product.name}，立即兑换`}
       >
         <CardHeader className="p-0">
           <div className={`flex h-32 items-center justify-center rounded-t-2xl bg-gradient-to-br ${gradient}`}>
@@ -75,8 +75,8 @@ export function ProductCard({
             <Badge className={`border-0 text-xs ${category.color}`}>
               {category.label}
             </Badge>
-            {variant === 'home' && (
-              <span className={cn('text-xs font-medium', outOfStock || (missingMiles ?? 0) > 0 ? 'text-destructive' : 'text-emerald-700')}>
+            {variant !== 'default' && (
+              <span className={cn('text-xs font-medium', outOfStock || (missingMiles ?? 0) > 0 ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-300')}>
                 {availability}
               </span>
             )}
@@ -89,8 +89,8 @@ export function ProductCard({
             <span className="text-lg font-bold text-accent">
               {product.mileage_cost.toLocaleString()} 里程
             </span>
-            <span className={cn('inline-flex h-7 items-center rounded-full bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground', variant === 'home' && outOfStock && 'opacity-50')}>
-              {variant === 'home' ? (outOfStock ? '暂时无货' : '查看详情') : '立即兑换'}
+            <span className={cn('inline-flex h-7 items-center rounded-full bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground', variant !== 'default' && outOfStock && 'opacity-50')}>
+              {variant !== 'default' ? (outOfStock ? '暂时无货' : '查看详情') : '立即兑换'}
             </span>
           </div>
         </CardContent>

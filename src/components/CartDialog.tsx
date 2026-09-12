@@ -24,7 +24,7 @@ import { toast } from 'sonner';
 interface CartDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  variant?: 'default' | 'home';
+  variant?: 'default' | 'home' | 'journey';
 }
 
 interface VoucherData {
@@ -110,9 +110,10 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
   if (voucher) {
     return (
       <Dialog open={true} onOpenChange={() => setVoucher(null)}>
-        <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface')}>
+        <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface', variant === 'journey' && 'journey-portal-surface')}>
           <VoucherDisplay
             voucher={voucher}
+            variant={variant}
             onContinueShopping={handleContinueShopping}
             onViewOrders={handleViewOrders}
           />
@@ -125,7 +126,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
   if (confirmItem) {
     return (
       <Dialog open={true} onOpenChange={() => setConfirmItem(null)}>
-        <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface')}>
+        <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface', variant === 'journey' && 'journey-portal-surface')}>
           <DialogHeader>
             <DialogTitle>确认兑换</DialogTitle>
             <DialogDescription>
@@ -149,7 +150,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface')}>
+      <DialogContent className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface', variant === 'journey' && 'journey-portal-surface')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-accent" />
@@ -173,14 +174,14 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between gap-3 p-2 rounded-lg border border-[#E2E8F0]"
+                    className={cn('flex items-start justify-between gap-3 rounded-lg border border-[#E2E8F0] p-2', variant === 'journey' && 'journey-inset-surface')}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10">
                         <Icon className="h-4 w-4 text-accent" />
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-medium">
                           {item.name}
                           {item.quantity > 1 && (
                             <span className="text-muted-foreground"> × {item.quantity}</span>
@@ -192,7 +193,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex shrink-0 flex-col items-end gap-1">
                       <Button
                         size="sm"
                         disabled={isAuthenticated && !canAfford}

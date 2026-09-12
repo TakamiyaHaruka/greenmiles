@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
 import { SharePoster } from '@/components/SharePoster';
 import { projectedOffsetKg } from '@/lib/carbon';
+import { cn } from '@/lib/utils';
 
 interface VoucherData {
   id: number;
@@ -27,6 +28,7 @@ interface VoucherDisplayProps {
   voucher: VoucherData;
   onContinueShopping: () => void;
   onViewOrders: () => void;
+  variant?: 'default' | 'home' | 'journey';
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -43,7 +45,7 @@ const TIPS = [
   '选择新型飞机（如 A320neo）可显著降低碳排放',
 ];
 
-export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: VoucherDisplayProps) {
+export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders, variant = 'default' }: VoucherDisplayProps) {
   const [copied, setCopied] = useState(false);
   const [tip] = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
   const Icon = ICON_MAP[voucher.icon_type] || ShoppingBag;
@@ -67,8 +69,8 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
             <p className="text-sm text-muted-foreground">
               {voucher.icon_type === 'bike' ? '骑行卡券码' : '酒店优惠券码'}
             </p>
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-              <code className="text-lg font-mono font-bold text-primary flex-1">
+            <div className={cn('flex items-center gap-2 rounded-lg bg-muted p-3', variant === 'journey' && 'journey-voucher-panel')}>
+              <code className="min-w-0 flex-1 break-all font-mono text-lg font-bold text-primary">
                 {voucher.voucher_code}
               </code>
               <Button variant="ghost" size="icon-sm" onClick={handleCopy}>
@@ -76,7 +78,7 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
               </Button>
             </div>
             {voucher.icon_type === 'hotel' && (
-              <div className="flex justify-center pt-2">
+              <div className={cn('flex justify-center pt-2', variant === 'journey' && 'rounded-lg bg-white p-2')}>
                 <QRCodeSVG value={voucher.voucher_code} size={128} />
               </div>
             )}
@@ -100,7 +102,7 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
       case 'tree':
         return (
           <div className="space-y-3">
-            <div className="p-4 bg-accent/10 rounded-lg text-center">
+            <div className={cn('rounded-lg bg-accent/10 p-4 text-center', variant === 'journey' && 'journey-voucher-panel')}>
               <TreePine className="h-8 w-8 text-accent mx-auto mb-2" />
               <p className="text-sm font-medium text-primary">碳抵消证书</p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -123,7 +125,7 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
                 buttonLabel="下载证书海报"
               />
             </div>
-            <div className="p-3 bg-muted rounded-lg">
+            <div className={cn('rounded-lg bg-muted p-3', variant === 'journey' && 'journey-voucher-panel')}>
               <div className="flex items-center gap-2 mb-2">
                 <Leaf className="h-4 w-4 text-accent" />
                 <span className="text-xs font-medium">绿色出行小贴士</span>
@@ -136,7 +138,7 @@ export function VoucherDisplay({ voucher, onContinueShopping, onViewOrders }: Vo
       case 'bag':
         return (
           <div className="space-y-3">
-            <div className="p-4 bg-muted rounded-lg text-center">
+            <div className={cn('rounded-lg bg-muted p-4 text-center', variant === 'journey' && 'journey-voucher-panel')}>
               <ShoppingBag className="h-8 w-8 text-accent mx-auto mb-2" />
               <p className="text-sm font-medium text-primary">订单状态</p>
               <Badge variant="secondary" className="mt-2">待发货</Badge>

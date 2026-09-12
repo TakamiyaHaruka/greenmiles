@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Package } from 'lucide-react';
 import type { Product } from '@/lib/types';
+import { useUserStore } from '@/stores/userStore';
 
 const CATEGORIES = [
   { value: 'all', label: 'All' },
@@ -29,14 +30,34 @@ export default function MallPage() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const balance = useUserStore((state) => state.user?.miles_balance ?? null);
 
   useEffect(() => {
-    fetch('/api/products')
-      .then((res) => res.json())
-      .then((data) => setProducts(data.data || []))
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
-  }, []);
+    let active = true;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
+    fetch('/api/products', { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error('商品加载失败');
+        return res.json();
+      })
+      .then((data: { data?: unknown }) => {
+        if (!Array.isArray(data?.data)) throw new Error('商品响应无效');
+        if (active) setProducts(data.data as Product[]);
+      })
+      .catch(() => { if (active) setLoadError(true); })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [reloadKey]);
 
   const filtered = useMemo(() => {
     let list = category === 'all'
@@ -58,8 +79,8 @@ export default function MallPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1280px] px-4 py-8">
+    <div className="journey-page">
+      <div className="relative mx-auto max-w-[1280px] px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-primary">绿色商城</h1>
           <p className="text-muted-foreground mt-2">
@@ -70,11 +91,11 @@ export default function MallPage() {
         <ContextBanner />
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-6 gap-4">
-          <Tabs value={category} onValueChange={setCategory}>
-            <TabsList>
+        <div className="journey-surface-heavy mb-6 flex flex-col gap-4 border p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <Tabs value={category} onValueChange={setCategory} className="min-w-0">
+            <TabsList className="grid h-auto w-full grid-cols-4 sm:flex sm:w-auto">
               {CATEGORIES.map((cat) => (
-                <TabsTrigger key={cat.value} value={cat.value}>
+                <TabsTrigger key={cat.value} value={cat.value} className="min-w-0 px-1.5 text-xs sm:px-3 sm:text-sm">
                   {cat.label}
                 </TabsTrigger>
               ))}
@@ -82,10 +103,10 @@ export default function MallPage() {
           </Tabs>
 
           <Select value={sort} onValueChange={(v) => v && setSort(v)}>
-            <SelectTrigger className="w-40 h-9">
+            <SelectTrigger aria-label="商品排序" className="h-9 w-full sm:w-40">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent surface="journey">
               <SelectItem value="low-to-high">里程从低到高</SelectItem>
               <SelectItem value="high-to-low">里程从高到低</SelectItem>
             </SelectContent>
@@ -94,8 +115,15 @@ export default function MallPage() {
 
         {/* Product Grid */}
         {loading ? (
-          <div className="text-center py-16 text-muted-foreground">
+          <div className="journey-surface-light border py-16 text-center text-muted-foreground" role="status">
             加载中...
+          </div>
+        ) : loadError ? (
+          <div className="journey-surface-light border py-16 text-center" role="alert">
+            <p className="text-muted-foreground">商品暂时无法加载</p>
+            <button type="button" className="mt-3 text-sm font-medium text-primary underline underline-offset-4" onClick={() => { setLoading(true); setLoadError(false); setReloadKey((key) => key + 1); }}>
+              重试
+            </button>
           </div>
         ) : filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -103,12 +131,14 @@ export default function MallPage() {
               <ProductCard
                 key={product.id}
                 product={product}
+                balance={balance}
+                variant="journey"
                 onClick={() => handleProductClick(product)}
               />
             ))}
           </div>
         ) : (
-          <div className="text-center py-16">
+          <div className="journey-surface-light border py-16 text-center">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
               <Package className="h-8 w-8 text-muted-foreground" />
             </div>
@@ -122,6 +152,8 @@ export default function MallPage() {
 
       <ProductDetailSheet
         product={selectedProduct}
+        balance={balance}
+        variant="journey"
         open={sheetOpen}
         onOpenChange={setSheetOpen}
       />

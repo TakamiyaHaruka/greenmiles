@@ -195,9 +195,9 @@ export function CarbonCalculator() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
       {/* Left: Input Form */}
-      <Card className="border border-[#E2E8F0]">
+      <Card className="journey-surface-heavy min-w-0 border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plane className="h-5 w-5 text-accent" />
@@ -210,21 +210,21 @@ export function CarbonCalculator() {
             <label htmlFor="flightNo" className="text-sm font-medium text-muted-foreground mb-1.5 block">
               按航班号导入
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
               <Input
                 id="flightNo"
                 placeholder="航班号，如 CA1501"
                 value={flightNo}
                 onChange={(e) => setFlightNo(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-                className="h-9"
+                className="h-9 min-w-0"
               />
               <Input
                 type="date"
                 aria-label="航班日期"
                 value={flightDate}
                 onChange={(e) => setFlightDate(e.target.value)}
-                className="h-9 w-36"
+                className="h-9 w-full"
               />
               <Button
                 size="sm"
@@ -238,10 +238,10 @@ export function CarbonCalculator() {
               </Button>
             </div>
             {lookupError && (
-              <p className="text-xs text-muted-foreground mt-1.5">{lookupError}</p>
+              <p className="mt-1.5 text-xs text-destructive" role="alert">{lookupError}</p>
             )}
             {importedFlight && (
-              <Badge variant="secondary" className="mt-2 font-normal">
+              <Badge variant="secondary" className="mt-2 max-w-full whitespace-normal break-words font-normal">
                 {importedFlight.airline} {importedFlight.flightNo} ·{' '}
                 {airportLabel(importedFlight.dep)} → {airportLabel(importedFlight.arr)} ·{' '}
                 {importedFlight.distanceKm.toLocaleString()} km
@@ -296,10 +296,10 @@ export function CarbonCalculator() {
                 control={control}
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full h-9">
+                    <SelectTrigger aria-label="出发机场" className="w-full h-9">
                       <SelectValue placeholder="选择机场" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent surface="journey">
                       {AIRPORT_OPTIONS.map((airport) => (
                         <SelectItem key={airport.code} value={airport.code}>
                           {airportLabel(airport.code)}
@@ -320,10 +320,10 @@ export function CarbonCalculator() {
                 control={control}
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full h-9">
+                    <SelectTrigger aria-label="到达机场" className="w-full h-9">
                       <SelectValue placeholder="选择机场" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent surface="journey">
                       {AIRPORT_OPTIONS.map((airport) => (
                         <SelectItem key={airport.code} value={airport.code}>
                           {airportLabel(airport.code)}
@@ -375,10 +375,10 @@ export function CarbonCalculator() {
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full h-9">
+                  <SelectTrigger aria-label="机型" className="w-full h-9">
                     <SelectValue placeholder="选择机型" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent surface="journey">
                     {Object.entries(AIRCRAFT_TYPES).map(([key, info]) => (
                       <SelectItem key={key} value={key}>
                         {info.label}
@@ -400,10 +400,10 @@ export function CarbonCalculator() {
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full h-9">
+                  <SelectTrigger aria-label="舱位" className="w-full h-9">
                     <SelectValue placeholder="选择舱位" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent surface="journey">
                     {Object.entries(CABIN_CLASSES).map(([key, info]) => (
                       <SelectItem key={key} value={key}>
                         {info.label}
@@ -418,7 +418,7 @@ export function CarbonCalculator() {
       </Card>
 
       {/* Right: Result Display */}
-      <Card className="border border-[#E2E8F0]">
+      <Card className="journey-surface-light min-w-0 border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TreePine className="h-5 w-5 text-accent" />
@@ -426,10 +426,13 @@ export function CarbonCalculator() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <output className="sr-only" aria-live="polite" aria-atomic="true">
+            {co2Kg === null ? '' : `碳排放 ${co2Kg} kg CO₂`}
+          </output>
           {co2Kg !== null ? (
             <div className="flex flex-col items-center gap-6">
               {/* Donut Chart */}
-              <div className="relative h-48 w-48">
+              <div className="journey-chart-panel relative h-48 w-48" role="img" aria-label={`碳排放 ${co2Kg} kg CO₂`}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie

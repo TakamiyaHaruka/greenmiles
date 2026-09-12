@@ -79,7 +79,7 @@ test.describe('phase 1 home experience', () => {
 
     await page.unroute('**/api/user');
     await page.getByRole('button', { name: '重试', exact: true }).first().click();
-    await expect(page.getByText('可用里程')).toBeVisible();
+    await expect(page.getByText('可用里程', { exact: true })).toBeVisible();
     await expect(page.getByText('10,000', { exact: true }).first()).toBeVisible();
   });
 
@@ -146,5 +146,70 @@ test.describe('phase 1 home experience', () => {
       getComputedStyle(element).transitionDuration
     ));
     expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001);
+  });
+
+  test('one saved appearance follows the member from home through calculator and mall only', async ({ page }) => {
+    await createAndLoginUser(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: '玻璃外观' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'standard');
+
+    await page.goto('/calculator');
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'standard');
+    const standardResultBackground = await page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backgroundColor);
+    await page.getByRole('button', { name: '玻璃外观' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
+    const glassResultBackground = await page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backgroundColor);
+    expect(glassResultBackground).not.toBe(standardResultBackground);
+
+    await page.goto('/mall');
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.locator('.journey-surface-light').first()).toBeVisible();
+    const mallGlass = await page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backdropFilter);
+    expect(mallGlass).toContain('blur(');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
+    await expect.poll(() => page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backdropFilter)).toContain('blur(');
+
+    await page.setViewportSize({ width: 320, height: 812 });
+    await page.getByRole('button', { name: '打开导航菜单' }).click();
+    await expect(page.getByRole('link', { name: '订单', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '退出登录' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: '打开导航菜单' })).toBeFocused();
+
+    await page.goto('/orders');
+    await expect(page.locator('nav')).not.toHaveClass(/journey-nav|home-nav/);
+    await expect(page.getByRole('button', { name: '玻璃外观' })).toHaveCount(0);
+  });
+
+  test('stage-two portals and surfaces respect reduced transparency and motion', async ({ page }) => {
+    await createAndLoginUser(page);
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setEmulatedMedia', {
+      features: [
+        { name: 'prefers-reduced-transparency', value: 'reduce' },
+        { name: 'prefers-reduced-motion', value: 'reduce' },
+      ],
+    });
+
+    await page.goto('/mall');
+    const product = page.getByRole('button', { name: /共享单车骑行卡.*查看详情/ });
+    await expect(product).toBeVisible();
+    await expect.poll(() => page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backdropFilter)).toBe('none');
+    await product.click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toHaveClass(/journey-portal-surface/);
+    await expect.poll(() => sheet.evaluate((element) => getComputedStyle(element).backdropFilter)).toBe('none');
+    const duration = await sheet.getByRole('button', { name: '加入购物车' }).evaluate((element) => getComputedStyle(element).transitionDuration);
+    expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001);
+    await page.keyboard.press('Escape');
+
+    await page.goto('/calculator');
+    await page.getByRole('combobox', { name: '出发机场' }).click();
+    const popup = page.locator('.journey-select-content');
+    await expect(popup).toBeVisible();
+    await expect.poll(() => popup.evaluate((element) => getComputedStyle(element).backdropFilter)).toBe('none');
   });
 });

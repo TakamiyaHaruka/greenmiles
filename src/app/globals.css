@@ -166,6 +166,74 @@
       linear-gradient(145deg, oklch(0.98 0.012 155), var(--home-canvas));
   }
 
+  .journey-page {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 8% 10%, oklch(0.85 0.12 152 / 38%), transparent 30rem),
+      radial-gradient(circle at 92% 24%, oklch(0.82 0.08 230 / 36%), transparent 34rem),
+      linear-gradient(145deg, oklch(0.98 0.012 155), var(--home-canvas));
+  }
+
+  .dark .journey-page {
+    background:
+      radial-gradient(circle at 8% 10%, oklch(0.31 0.07 160 / 30%), transparent 30rem),
+      radial-gradient(circle at 92% 24%, oklch(0.28 0.05 230 / 30%), transparent 34rem),
+      var(--home-canvas);
+  }
+
+  .journey-surface-light,
+  .journey-surface-heavy,
+  .journey-portal-surface,
+  .journey-nav,
+  .journey-select-content,
+  .journey-inset-surface,
+  .journey-voucher-panel {
+    border-color: var(--home-solid-border) !important;
+    background: var(--home-solid-light) !important;
+    box-shadow: var(--home-shadow-light);
+  }
+
+  .journey-surface-heavy,
+  .journey-portal-surface,
+  .journey-nav,
+  .journey-select-content {
+    background: var(--home-solid-heavy) !important;
+    box-shadow: var(--home-shadow-heavy);
+  }
+
+  .journey-surface-light,
+  .journey-surface-heavy {
+    border-radius: var(--home-surface-radius);
+  }
+
+  .journey-chart-panel {
+    border: 1px solid var(--home-solid-border);
+    border-radius: 1rem;
+    background: var(--home-solid-heavy);
+  }
+
+  .journey-page [data-slot="tabs-list"],
+  .journey-page [data-slot="select-trigger"] {
+    border: 1px solid var(--home-solid-border);
+    background: var(--home-solid-heavy) !important;
+  }
+
+  .journey-page [data-slot="tabs-trigger"][data-active] {
+    background: var(--home-solid-light) !important;
+  }
+
+  .journey-portal-surface [data-slot="input"],
+  .journey-page [data-slot="input"] {
+    background-color: var(--home-solid-heavy) !important;
+  }
+
+  html[data-glass-mode="glass"] body:has(.journey-portal-surface) [data-slot="dialog-overlay"],
+  html[data-glass-mode="glass"] body:has(.journey-portal-surface) [data-slot="sheet-overlay"] {
+    background: oklch(0.13 0.025 230 / 30%);
+  }
+
   .home-page::before,
   .home-page::after {
     position: absolute;
@@ -232,6 +300,27 @@
   }
 
   @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    html[data-glass-mode="glass"] .journey-page .journey-surface-light,
+    html[data-glass-mode="glass"] .journey-portal-surface .journey-voucher-panel,
+    html[data-glass-mode="glass"] .journey-portal-surface .journey-inset-surface {
+      border-color: var(--home-glass-border) !important;
+      background: var(--home-glass-light) !important;
+      box-shadow: var(--home-shadow-light), var(--home-edge-highlight);
+      -webkit-backdrop-filter: blur(14px) saturate(128%);
+      backdrop-filter: blur(14px) saturate(128%);
+    }
+
+    html[data-glass-mode="glass"] .journey-page .journey-surface-heavy,
+    html[data-glass-mode="glass"] .journey-portal-surface,
+    html[data-glass-mode="glass"] .journey-nav,
+    html[data-glass-mode="glass"] .journey-select-content {
+      border-color: var(--home-glass-border) !important;
+      background: var(--home-glass-heavy) !important;
+      box-shadow: var(--home-shadow-heavy), var(--home-edge-highlight);
+      -webkit-backdrop-filter: blur(22px) saturate(138%);
+      backdrop-filter: blur(22px) saturate(138%);
+    }
+
     html[data-glass-mode="glass"] .home-page .home-surface-light {
       border-color: var(--home-glass-border);
       background: var(--home-glass-light);
@@ -253,6 +342,10 @@
     html[data-glass-mode="glass"] .home-nav .home-appearance-toggle {
       background: oklch(1 0 0 / 44%);
     }
+
+    html[data-glass-mode="glass"] .journey-nav .home-appearance-toggle {
+      background: oklch(1 0 0 / 44%);
+    }
   }
 
   .dark .home-appearance-toggle {
@@ -263,7 +356,33 @@
     background: oklch(0.28 0.025 220 / 64%);
   }
 
+  html.dark[data-glass-mode="glass"] .journey-nav .home-appearance-toggle {
+    background: oklch(0.28 0.025 220 / 64%);
+  }
+
   @media (prefers-reduced-transparency: reduce) {
+    html[data-glass-mode="glass"] .journey-page .journey-surface-light,
+    html[data-glass-mode="glass"] .journey-portal-surface .journey-voucher-panel,
+    html[data-glass-mode="glass"] .journey-portal-surface .journey-inset-surface {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: var(--home-solid-light) !important;
+    }
+
+    html[data-glass-mode="glass"] .journey-page .journey-surface-heavy,
+    html[data-glass-mode="glass"] .journey-portal-surface,
+    html[data-glass-mode="glass"] .journey-nav,
+    html[data-glass-mode="glass"] .journey-select-content {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: var(--home-solid-heavy) !important;
+    }
+
+    html[data-glass-mode="glass"] body:has(.journey-portal-surface) [data-slot="dialog-overlay"],
+    html[data-glass-mode="glass"] body:has(.journey-portal-surface) [data-slot="sheet-overlay"] {
+      background: oklch(0.13 0.025 230 / 65%);
+    }
+
     html[data-glass-mode="glass"] .home-page .home-surface-light,
     html[data-glass-mode="glass"] .home-page .home-surface-heavy,
     html[data-glass-mode="glass"] .home-portal-surface,
@@ -283,9 +402,27 @@
     html[data-glass-mode="glass"] .home-nav .home-appearance-toggle {
       background: var(--home-solid-light);
     }
+
+    html[data-glass-mode="glass"] .journey-nav .home-appearance-toggle {
+      background: var(--home-solid-light);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .journey-page *,
+    .journey-nav *,
+    .journey-portal-surface,
+    .journey-portal-surface *,
+    .journey-select-content,
+    .journey-select-content *,
+    body:has(.journey-portal-surface) [data-slot="dialog-overlay"],
+    body:has(.journey-portal-surface) [data-slot="sheet-overlay"] {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+
     .home-page *,
     .home-nav *,
     .home-portal-surface,

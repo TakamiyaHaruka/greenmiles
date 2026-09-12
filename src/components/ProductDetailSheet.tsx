@@ -23,7 +23,7 @@ interface ProductDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   balance?: number | null;
-  variant?: 'default' | 'home';
+  variant?: 'default' | 'home' | 'journey';
 }
 
 interface AddressForm {
@@ -105,7 +105,7 @@ export function ProductDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface')}
+        className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface', variant === 'journey' && 'journey-portal-surface')}
       >
         <SheetHeader>
           <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export function ProductDetailSheet({
 
         <div className="flex-1 overflow-y-auto px-4 space-y-4">
           {/* Price and Stock */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-2xl font-bold text-accent">
               {product.mileage_cost.toLocaleString()} 里程
             </span>

@@ -17,12 +17,12 @@ export function ContextBanner() {
   };
 
   return (
-    <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 mb-6 flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
+    <div className="journey-surface-light mb-6 flex items-center justify-between gap-3 border px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
         <div className="h-9 w-9 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
           <Leaf className="h-5 w-5 text-accent" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-medium text-primary">
             抵消您本次飞行的 <span className="text-accent font-bold">{co2Kg} kg</span> 碳排
           </p>

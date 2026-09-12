@@ -72,6 +72,13 @@ describe('ProductCard', () => {
     expect(screen.queryByText('库存 100')).not.toBeInTheDocument();
   });
 
+  it('uses the stage-two surface and preserves live availability in the mall', () => {
+    const { container } = render(<ProductCard product={mockProduct} balance={200} variant="journey" />);
+    expect(container.querySelector('.journey-surface-light')).toBeInTheDocument();
+    expect(screen.getByText('还差 1,000 里程')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /查看详情/ })).toBeInTheDocument();
+  });
+
   it('shows the exact shortage for a signed-in balance', () => {
     render(<ProductCard product={mockProduct} balance={200} variant="home" />);
     expect(screen.getByText('还差 1,000 里程')).toBeInTheDocument();

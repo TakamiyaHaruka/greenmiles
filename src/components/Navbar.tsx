@@ -30,6 +30,7 @@ export function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const count = itemCount();
   const isHome = pathname === '/';
+  const hasGlassAppearance = isHome || pathname === '/mall' || pathname === '/calculator';
   const isInitializing = initializationStatus === 'idle' || initializationStatus === 'loading';
 
   useEffect(() => {
@@ -63,8 +64,8 @@ export function Navbar() {
       <nav
         className={cn(
           'sticky top-0 z-50 w-full border-b',
-          isHome
-            ? 'home-nav border-white/50'
+          hasGlassAppearance
+            ? isHome ? 'home-nav border-white/50' : 'journey-nav border-white/50'
             : 'border-[#E2E8F0] bg-background/80 backdrop-blur-md'
         )}
       >
@@ -73,12 +74,12 @@ export function Navbar() {
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <Leaf className="h-5 w-5 text-white" aria-hidden="true" />
             </span>
-            <span className={cn('text-lg font-bold text-primary', isHome && 'hidden min-[390px]:inline')}>
+            <span className={cn('text-lg font-bold text-primary', hasGlassAppearance && 'hidden min-[390px]:inline')}>
               GreenMiles
             </span>
           </Link>
 
-          <div className={cn('items-center gap-6', isHome ? 'hidden lg:flex' : 'flex')}>
+          <div className={cn('items-center gap-6', hasGlassAppearance ? 'hidden lg:flex' : 'flex')}>
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -98,14 +99,14 @@ export function Navbar() {
           </div>
 
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
-            {!isHome && (
+            {!hasGlassAppearance && (
               <div className="relative">
                 <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
                 <Input disabled placeholder="Coming Soon" className="h-9 w-40 pl-8" />
               </div>
             )}
 
-            {isHome && <GlassModeToggle compact />}
+            {hasGlassAppearance && <GlassModeToggle compact />}
 
             {(isAuthenticated || (isHome && count > 0)) && (
               <Button
@@ -132,11 +133,11 @@ export function Navbar() {
               </Button>
             ) : isAuthenticated ? (
               <>
-                <MilesBalance compact={isHome} />
+                <MilesBalance compact={hasGlassAppearance} />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn(isHome && 'hidden lg:inline-flex')}
+                  className={cn(hasGlassAppearance && 'hidden lg:inline-flex')}
                   aria-label="退出登录"
                   title="退出登录"
                   onClick={handleLogout}
@@ -145,7 +146,7 @@ export function Navbar() {
                 </Button>
               </>
             ) : (
-              <div className={cn('flex items-center gap-1', isHome && 'hidden md:flex')}>
+              <div className={cn('flex items-center gap-1', hasGlassAppearance && 'hidden md:flex')}>
                 <Link href="/login" className={cn(buttonVariants({ variant: 'ghost' }))}>
                   登录
                 </Link>
@@ -155,7 +156,7 @@ export function Navbar() {
               </div>
             )}
 
-            {isHome && (
+            {hasGlassAppearance && (
               <Button
                 type="button"
                 variant="ghost"
@@ -163,7 +164,7 @@ export function Navbar() {
                 className="lg:hidden"
                 aria-label={menuOpen ? '关闭导航菜单' : '打开导航菜单'}
                 aria-expanded={menuOpen}
-                aria-controls="home-mobile-menu"
+                aria-controls="appearance-mobile-menu"
                 ref={menuButtonRef}
                 onClick={() => setMenuOpen((open) => !open)}
               >
@@ -173,10 +174,13 @@ export function Navbar() {
           </div>
         </div>
 
-        {isHome && menuOpen && (
+        {hasGlassAppearance && menuOpen && (
           <div
-            id="home-mobile-menu"
-            className="home-surface-heavy absolute inset-x-3 top-[calc(100%+0.5rem)] grid gap-1 border p-3 lg:hidden"
+            id="appearance-mobile-menu"
+            className={cn(
+              'absolute inset-x-3 top-[calc(100%+0.5rem)] grid gap-1 border p-3 lg:hidden',
+              isHome ? 'home-surface-heavy' : 'journey-surface-heavy'
+            )}
           >
             {navLinks.map((link) => (
               <Link
@@ -223,7 +227,7 @@ export function Navbar() {
       <CartDialog
         open={cartOpen}
         onOpenChange={setCartOpen}
-        variant={isHome ? 'home' : 'default'}
+        variant={isHome ? 'home' : hasGlassAppearance ? 'journey' : 'default'}
       />
     </>
   );

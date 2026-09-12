@@ -31,6 +31,12 @@ describe('CarbonCalculator', () => {
     expect(screen.getByText('请输入完整的航班信息')).toBeInTheDocument();
   });
 
+  it('keeps inputs on a heavier surface and results on a lighter surface', () => {
+    const { container } = render(<CarbonCalculator />);
+    expect(container.querySelector('.journey-surface-heavy')).toHaveTextContent('航班信息');
+    expect(container.querySelector('.journey-surface-light')).toHaveTextContent('碳排放结果');
+  });
+
   it('renders distance input', () => {
     render(<CarbonCalculator />);
     expect(screen.getByLabelText('飞行距离 (km)')).toBeInTheDocument();

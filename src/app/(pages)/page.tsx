@@ -249,8 +249,8 @@ export default function HomePage() {
           <div className="home-member-card flex min-h-72 flex-col justify-between rounded-[1.75rem] border p-6 sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold tracking-[0.2em] text-white/65 uppercase">GreenMiles Member</p>
-                <p className="mt-2 text-sm text-white/70">每一笔绿色兑换，都从可用里程开始</p>
+                <p className="text-xs font-semibold tracking-[0.2em] text-white/90 uppercase">GreenMiles Member</p>
+                <p className="mt-2 text-sm text-white/90">每一笔绿色兑换，都从可用里程开始</p>
               </div>
               <Sparkles className="h-6 w-6 text-emerald-300" aria-hidden="true" />
             </div>
@@ -264,23 +264,23 @@ export default function HomePage() {
             ) : authenticationFailed ? (
               <div>
                 <p className="text-xl font-semibold">暂时无法确认会员状态</p>
-                <p className="mt-2 text-sm text-white/70">没有把连接失败误显示为游客；请重试。</p>
+                <p className="mt-2 text-sm text-white/90">没有把连接失败误显示为游客；请重试。</p>
                 <Button variant="secondary" className="mt-5" onClick={() => void fetchUser()}>
                   <RefreshCw aria-hidden="true" /> 重试
                 </Button>
               </div>
             ) : isAuthenticated && user ? (
               <div>
-                <p className="text-sm text-white/65">可用里程</p>
+                <p className="text-sm text-white/90">可用里程</p>
                 <p className="mt-1 break-all text-4xl font-bold tracking-tight sm:text-5xl">
                   {user.miles_balance.toLocaleString()}
                 </p>
-                <p className="mt-4 truncate text-sm text-white/70" title={user.email}>{user.email}</p>
+                <p className="mt-4 truncate text-sm text-white/90" title={user.email}>{user.email}</p>
               </div>
             ) : (
               <div>
                 <p className="text-2xl font-semibold">从 10,000 演示里程开始</p>
-                <p className="mt-2 text-sm leading-6 text-white/70">注册后即可体验完整兑换流程；首页精选商品无需登录即可浏览。</p>
+                <p className="mt-2 text-sm leading-6 text-white/90">注册后即可体验完整兑换流程；首页精选商品无需登录即可浏览。</p>
                 <Link href="/register" className={cn(buttonVariants({ variant: 'secondary' }), 'mt-5')}>
                   注册领取 10,000 演示里程
                 </Link>

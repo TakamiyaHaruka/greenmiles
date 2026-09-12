@@ -42,6 +42,7 @@ export function ProductCard({
   const category = CATEGORY_MAP[product.category] || { label: product.category, color: 'bg-gray-100 text-gray-700' };
   const Icon = ICON_MAP[product.icon_type] || ShoppingBag;
   const gradient = GRADIENT_MAP[product.icon_type] || 'from-gray-400 to-gray-500';
+  const journeyPalette = variant === 'home' || variant === 'journey';
   const outOfStock = product.stock <= 0;
   const missingMiles = balance == null ? null : Math.max(product.mileage_cost - balance, 0);
   const availability = outOfStock
@@ -66,17 +67,17 @@ export function ProductCard({
         aria-label={variant !== 'default' ? `${product.name}，${availability}，查看详情` : `${product.name}，立即兑换`}
       >
         <CardHeader className="p-0">
-          <div className={`flex h-32 items-center justify-center rounded-t-2xl bg-gradient-to-br ${gradient}`}>
-            <Icon className="h-12 w-12 text-white/90 transition-transform group-hover:scale-110" />
+          <div className={cn('flex h-32 items-center justify-center rounded-t-2xl', journeyPalette ? 'product-illustration' : `bg-gradient-to-br ${gradient}`)}>
+            <Icon className={cn('h-12 w-12 transition-transform group-hover:scale-110', !journeyPalette && 'text-white/90')} />
           </div>
         </CardHeader>
         <CardContent className="space-y-2 p-4">
           <div className="flex items-center justify-between gap-2">
-            <Badge className={`border-0 text-xs ${category.color}`}>
+            <Badge variant={journeyPalette ? 'outline' : 'default'} className={cn('border-0 text-xs', journeyPalette ? 'product-category-badge' : category.color)}>
               {category.label}
             </Badge>
             {variant !== 'default' && (
-              <span className={cn('text-xs font-medium', outOfStock || (missingMiles ?? 0) > 0 ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-300')}>
+              <span className={cn('text-xs font-medium', outOfStock || (missingMiles ?? 0) > 0 ? 'text-destructive' : 'product-accent-text')}>
                 {availability}
               </span>
             )}
@@ -86,7 +87,7 @@ export function ProductCard({
             {product.description}
           </p>
           <div className="flex items-center justify-between gap-2 pt-2">
-            <span className="text-lg font-bold text-accent">
+            <span className={cn('text-lg font-bold', journeyPalette ? 'product-accent-text' : 'text-accent')}>
               {product.mileage_cost.toLocaleString()} 里程
             </span>
             <span className={cn('inline-flex h-7 items-center rounded-full bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground', variant !== 'default' && outOfStock && 'opacity-50')}>

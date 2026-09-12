@@ -48,6 +48,29 @@ describe('ProductCard', () => {
     expect(screen.getByText('实体商品')).toBeInTheDocument();
   });
 
+  it.each(['bike', 'hotel', 'tree', 'bag'])(
+    'uses the same muted illustration for %s in the redesigned cards',
+    (iconType) => {
+      const { container, rerender } = render(
+        <ProductCard product={{ ...mockProduct, icon_type: iconType }} variant="home" />
+      );
+      for (const variant of ['home', 'journey'] as const) {
+        rerender(<ProductCard product={{ ...mockProduct, icon_type: iconType }} variant={variant} />);
+        const illustration = container.querySelector('.product-illustration');
+        expect(illustration).toBeInTheDocument();
+        expect(illustration?.className).not.toContain('bg-gradient-to-br');
+        expect(illustration?.querySelector('svg')).not.toHaveClass('text-white/90');
+        expect(screen.getByText('虚拟卡券')).toHaveClass('product-category-badge');
+      }
+    }
+  );
+
+  it('leaves the original illustration palette on the default card', () => {
+    const { container } = render(<ProductCard product={mockProduct} />);
+    expect(container.querySelector('.product-illustration')).not.toBeInTheDocument();
+    expect(container.querySelector('.bg-gradient-to-br')).toBeInTheDocument();
+  });
+
   it('renders fallback category for unknown category', () => {
     render(<ProductCard product={{ ...mockProduct, category: 'unknown' }} />);
     expect(screen.getByText('unknown')).toBeInTheDocument();
@@ -82,6 +105,11 @@ describe('ProductCard', () => {
   it('shows the exact shortage for a signed-in balance', () => {
     render(<ProductCard product={mockProduct} balance={200} variant="home" />);
     expect(screen.getByText('还差 1,000 里程')).toBeInTheDocument();
+  });
+
+  it('keeps the redeemable state when the balance covers the cost', () => {
+    render(<ProductCard product={mockProduct} balance={1200} variant="journey" />);
+    expect(screen.getByText('当前可兑换')).toBeInTheDocument();
   });
 
   it('keeps unavailable products inspectable while showing their status', () => {

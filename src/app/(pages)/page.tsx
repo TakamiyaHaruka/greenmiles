@@ -225,7 +225,7 @@ export default function HomePage() {
             </div>
             <h1 className="max-w-3xl text-4xl leading-tight font-bold tracking-[-0.04em] text-primary sm:text-5xl lg:text-6xl">
               让飞过的里程，
-              <span className="text-emerald-700">长出新的风景。</span>
+              <span className="block text-emerald-700">长出新的风景。</span>
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               用现有里程发现绿色好物，也可以先记录一段航程，了解自己的飞行碳足迹。

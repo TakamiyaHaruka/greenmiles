@@ -1,6 +1,6 @@
 # GreenMiles ✈️🌱
 
-**航司绿色里程生态商城 Demo —— 让飞行碳足迹可见，让闲置里程变绿。**
+**让飞过的里程，长出新的风景。** 用闲置里程探索绿色好物，计算飞行碳排放，并留下自己的绿色行动记录。
 
 [![CI](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml/badge.svg)](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml)
 [![E2E: Playwright](https://img.shields.io/badge/E2E-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
@@ -22,11 +22,19 @@ GreenMiles 探索的答案是：一个轻量级绿色生态商城，让每次飞
 
 核心体验旅程：**Reveal（揭示碳排）→ Offset（采取行动）→ Proof（携带证明）**。
 
+## 产品体验
+
+首页以会员里程卡片和绿色好物为主角。游客可先浏览精选商品；登录后显示真实的里程余额与个人行动记录。首页、商城和计算器采用轻盈的绿色视觉风格，并可切换玻璃 / 标准外观；选择会在这些页面间保留。
+
 ## 界面截图
 
-**会员控制台 —— 所有 KPI 均由数据库实时计算（非 Mock 数据）：**
+**游客首页 —— 无需登录即可发现绿色好物：**
 
-![控制台](docs/screenshots/dashboard.png)
+![游客首页](docs/screenshots/landing.png)
+
+**会员首页 —— 里程余额与个人记录来自数据库（非 Mock 数据）：**
+
+![会员首页](docs/screenshots/dashboard.png)
 
 **碳排放计算器：**
 
@@ -123,8 +131,8 @@ CO₂ (kg) = 航距 (km) × 机型系数 (kg/km) × 舱位权重
 
 ## 测试
 
-- **单元测试（Vitest + Testing Library）**—— 212 条用例，覆盖碳排放引擎、机场坐标与距离计算、航班 Provider、认证工具、Zod 校验、API 路由（订单、取消、里程账本、碳足迹、航班、统计、管理后台）、针对旧库的账本迁移与回填、海报/足迹纯函数、路由守卫 proxy 和 Zustand store。`npm test`
-- **E2E（Playwright）**—— 12 条旅程，跑在独立、每次全新种子的 SQLite 数据库上：注册登录、碳排放计算、航班号导入预填、里程兑换含凭证二维码、订单历史、订单取消（里程退回 + 账本校验）、管理端订单发货（含非法转移 400）、碳足迹页（投影 / 图表 / 海报）、未登录路由守卫、余额不足结算守卫。首次运行先 `npx playwright install chromium`，然后 `npm run test:e2e`
+- **单元测试（Vitest + Testing Library）**—— 覆盖碳排放引擎、机场坐标与距离、航班 Provider、认证工具、Zod 校验、API 路由、账本迁移、海报 / 足迹函数、路由守卫、外观偏好和 Zustand store。运行 `npm test`。
+- **E2E（Playwright）**—— 在独立、全新种子的 SQLite 数据库上验证首页外观切换、商城与计算器、注册登录、里程兑换与凭证二维码、订单取消及退款、管理端发货、碳足迹报告和路由守卫。首次运行先 `npx playwright install chromium`，然后运行 `npm run test:e2e`。
 
 ## 项目结构
 
@@ -138,12 +146,6 @@ src/
 ├── stores/             # Zustand 状态（用户、购物车、碳排放）
 └── proxy.ts            # JWT 路由守卫（Next.js 16 proxy 约定）
 ```
-
-## 用 AI Agent 全流程开发 🤖
-
-本项目从需求到落地全流程使用 **BMad Method v6.7.1** 与 AI Agent 协作完成：产品简介 → PRD（含 19 条决策日志）→ 架构设计 → UX 设计 → Epics & Stories → 逐 Story 实现。
-
-逐 Story 实现记录见 [`docs/bmad/`](docs/bmad/)，完整复盘文章见 [`docs/zh-CN/`](docs/zh-CN/)。
 
 ## 参与贡献
 

@@ -44,6 +44,10 @@ yarn-error.log*
 /playwright-report/
 /blob-report/
 
+# local planning and implementation records
+/docs/bmad/
+/docs/zh-CN/
+
 # vercel
 .vercel
 

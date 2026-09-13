@@ -1,6 +1,6 @@
 # GreenMiles ✈️🌱
 
-**An airline green-miles eco-mall demo — see your flight's carbon footprint, then put idle miles to work for the planet.**
+**Turn miles flown into a greener journey.** Explore eco-friendly rewards with spare miles, calculate a flight's carbon footprint, and keep track of the choices you make.
 
 [![CI](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml/badge.svg)](https://github.com/TakamiyaHaruka/greenmiles/actions/workflows/ci.yml)
 [![E2E: Playwright](https://img.shields.io/badge/E2E-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
@@ -9,7 +9,7 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 > [!NOTE]
-> GreenMiles is a **demo / proof of concept**. It runs locally, uses seeded data, and does not connect to real payments, real airlines, or real user accounts. The UI is currently in Chinese — i18n is tracked as an open question in the PRD.
+> GreenMiles is a **demo / proof of concept**. It runs locally, uses seeded data, and does not connect to real payments, real airlines, or real user accounts. The UI is currently in Chinese.
 
 ## The idea
 
@@ -22,11 +22,19 @@ GreenMiles explores one answer: a small eco-mall where a flight's carbon emissio
 
 The core experience journey: **Reveal** (see the emission) → **Offset** (take action with miles) → **Proof** (carry a voucher as proof of action).
 
+## Experience
+
+The home page leads with a member miles card and available green products. Guests can browse featured items before signing in; members see their actual balance and personal activity. The home page, mall, and calculator share a light, green-tinted visual style, with a saved appearance toggle for switching between glass and standard surfaces on those pages.
+
 ## Screenshots
 
-**Member dashboard — every KPI is computed live from the database (no mock numbers):**
+**Guest home — discover products before signing in:**
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Guest home](docs/screenshots/landing.png)
+
+**Member home — the balance and personal activity come from the database (no mock numbers):**
+
+![Member home](docs/screenshots/dashboard.png)
 
 **Carbon calculator:**
 
@@ -123,8 +131,8 @@ These are simplified illustrative factors for demo purposes, not an official met
 
 ## Testing
 
-- **Unit (Vitest + Testing Library)** — 212 tests covering the carbon engine, airport coordinates & distance, the flight provider, auth helpers, Zod schemas, API route handlers (orders, cancellation, miles, carbon, flight, stats, admin), the ledger migration & backfill against a legacy schema, poster/footprint helpers, the proxy route guard and Zustand stores. `npm test`
-- **E2E (Playwright)** — 12 journeys against a production build with an isolated, freshly seeded SQLite database: register & login, carbon calculator result, flight-number import prefill, miles redemption with voucher QR code, order history, order cancellation with miles refund & ledger check, admin order fulfilment with illegal-transition guards, the footprint page (projection, chart, posters), unauthenticated route guard, and the insufficient-balance settlement guard. First run needs `npx playwright install chromium`, then `npm run test:e2e`
+- **Unit (Vitest + Testing Library)** — covers the carbon engine, airport coordinates & distance, flight provider, auth helpers, Zod schemas, API routes, ledger migration, poster/footprint helpers, route guards, appearance preferences, and Zustand stores. Run `npm test`.
+- **E2E (Playwright)** — exercises the home appearance toggle, mall and calculator, registration and login, redemption and voucher QR codes, order cancellation and refunds, admin fulfilment, footprint reports, and route guards against a production build with an isolated, freshly seeded SQLite database. First run needs `npx playwright install chromium`; then run `npm run test:e2e`.
 
 ## Project structure
 
@@ -138,12 +146,6 @@ src/
 ├── stores/             # zustand stores (user, cart, carbon)
 └── proxy.ts            # JWT route protection (Next.js 16 proxy convention)
 ```
-
-## Built with AI agents 🤖
-
-This project was planned and built end-to-end with the **BMad Method v6.7.1** workflow and AI agents: product brief → PRD (19 logged decisions) → architecture → UX design → epics & stories → implementation, with each story tracked to completion.
-
-Per-story implementation artifacts are in [`docs/bmad/`](docs/bmad/), and a full write-up (in Chinese) lives in [`docs/zh-CN/`](docs/zh-CN/).
 
 ## Contributing
 

@@ -30,7 +30,7 @@ async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 2,
+    deviceScaleFactor: 1,
   });
   const page = await context.newPage();
 
@@ -112,7 +112,7 @@ async function main() {
   if (ADMIN_PASSWORD) {
     const adminContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
-      deviceScaleFactor: 2,
+      deviceScaleFactor: 1,
     });
     const adminPage = await adminContext.newPage();
     const adminLogin = await adminPage.request.post(`${BASE}/api/admin/login`, {

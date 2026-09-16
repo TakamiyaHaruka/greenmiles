@@ -48,7 +48,9 @@ The home page leads with a member miles card and available green products. Guest
 
 ![Footprint](docs/screenshots/footprint.png)
 
-**Orders — vouchers, cancellation, and the miles-ledger balance tab:**
+**Orders — redemption history, cancellation, and the miles ledger:**
+
+![Orders](docs/screenshots/orders.png)
 
 ![Orders balance tab](docs/screenshots/orders-balance.png)
 

@@ -48,7 +48,9 @@ GreenMiles 探索的答案是：一个轻量级绿色生态商城，让每次飞
 
 ![碳足迹](docs/screenshots/footprint.png)
 
-**订单页 —— 凭证、取消订单与余额明细账本：**
+**订单页 —— 兑换记录、取消订单与里程明细账本：**
+
+![订单历史](docs/screenshots/orders.png)
 
 ![订单余额明细](docs/screenshots/orders-balance.png)
 

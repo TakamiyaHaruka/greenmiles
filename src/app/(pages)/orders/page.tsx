@@ -1,25 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Bike,
+  Check,
+  Copy,
+  FolderOpen,
+  Hotel,
+  Leaf,
+  RefreshCw,
+  ShoppingBag,
+  TreePine,
+  Wallet,
+} from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Bike, Hotel, TreePine, ShoppingBag, FolderOpen, Copy, Check, Leaf, Wallet } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/components/ui/button';
-import { useUserStore } from '@/stores/userStore';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SharePoster } from '@/components/SharePoster';
 import { projectedOffsetKg } from '@/lib/carbon';
+import { cn } from '@/lib/utils';
+import { useUserStore } from '@/stores/userStore';
 
 interface Order {
   id: number;
@@ -60,66 +72,243 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
   cancelled: { label: '已取消', variant: 'destructive' },
 };
 
-const TIPS = [
-  '选择直飞航班可减少约 20% 碳排放',
-  '经济舱的碳足迹仅为头等舱的 1/4',
-  '轻装出行，每减少 1kg 行李可降低飞行碳排放',
-];
+const TIP = '选择直飞航班可减少约 20% 碳排放';
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isOptionalString(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
+function isOrder(value: unknown): value is Order {
+  if (!value || typeof value !== 'object') return false;
+  const order = value as Partial<Order>;
+  return Number.isInteger(order.id) && (order.id ?? 0) > 0
+    && typeof order.product_name === 'string'
+    && typeof order.icon_type === 'string'
+    && typeof order.category === 'string'
+    && isFiniteNumber(order.mileage_cost) && order.mileage_cost >= 0
+    && Number.isInteger(order.quantity) && (order.quantity ?? 0) > 0
+    && typeof order.status === 'string'
+    && typeof order.voucher_code === 'string'
+    && typeof order.created_at === 'string'
+    && isOptionalString(order.address)
+    && isOptionalString(order.project_name)
+    && isOptionalString(order.project_standard)
+    && isOptionalString(order.project_vintage);
+}
+
+function isMilesTransaction(value: unknown): value is MilesTransaction {
+  if (!value || typeof value !== 'object') return false;
+  const transaction = value as Partial<MilesTransaction>;
+  return Number.isInteger(transaction.id) && (transaction.id ?? 0) > 0
+    && isFiniteNumber(transaction.amount)
+    && (transaction.type === 'grant' || transaction.type === 'redeem' || transaction.type === 'refund')
+    && (transaction.order_id === null || (Number.isInteger(transaction.order_id) && (transaction.order_id ?? 0) > 0))
+    && (transaction.description === null || typeof transaction.description === 'string')
+    && typeof transaction.created_at === 'string';
+}
+
+async function fetchOrdersData(signal: AbortSignal): Promise<Order[]> {
+  const response = await fetch('/api/orders', { signal });
+  if (!response.ok) throw new Error('订单暂时无法加载');
+  const payload = await response.json() as { data?: unknown };
+  if (!Array.isArray(payload.data) || !payload.data.every(isOrder)) {
+    throw new Error('订单响应无效');
+  }
+  return payload.data;
+}
+
+async function fetchMilesData(signal: AbortSignal): Promise<{ transactions: MilesTransaction[]; balance: number }> {
+  const response = await fetch('/api/miles', { signal });
+  if (!response.ok) throw new Error('里程明细暂时无法加载');
+  const payload = await response.json() as {
+    data?: { transactions?: unknown; balance?: unknown };
+  };
+  if (!Array.isArray(payload.data?.transactions)
+    || !payload.data.transactions.every(isMilesTransaction)
+    || !isFiniteNumber(payload.data.balance)) {
+    throw new Error('里程响应无效');
+  }
+  return { transactions: payload.data.transactions, balance: payload.data.balance };
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<MilesTransaction[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ledgerLoading, setLedgerLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const ordersRequestSequence = useRef(0);
+  const milesRequestSequence = useRef(0);
+  const ordersController = useRef<AbortController | null>(null);
+  const milesController = useRef<AbortController | null>(null);
+  const orderFocusRefs = useRef(new Map<number, HTMLDivElement>());
+  const focusOrderAnchorOnClose = useRef(false);
+  const lastCancelOrderId = useRef<number | null>(null);
   const updateMilesBalance = useUserStore((state) => state.updateMilesBalance);
 
-  const loadMiles = () => {
-    fetch('/api/miles')
-      .then((res) => res.json())
-      .then((data) => {
-        setTransactions(data.data?.transactions || []);
-        setBalance(data.data?.balance ?? null);
-      })
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    fetch('/api/orders')
-      .then((res) => res.json())
-      .then((data) => setOrders(data.data || []))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false));
-    loadMiles();
+  const loadOrders = useCallback(async () => {
+    const requestSequence = ++ordersRequestSequence.current;
+    ordersController.current?.abort();
+    const controller = new AbortController();
+    ordersController.current = controller;
+    setOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      const nextOrders = await fetchOrdersData(controller.signal);
+      if (requestSequence !== ordersRequestSequence.current) return;
+      setOrders(nextOrders);
+      setOrdersError(null);
+    } catch (error) {
+      if (requestSequence === ordersRequestSequence.current && !isAbortError(error)) {
+        setOrdersError('订单暂时无法加载');
+      }
+    } finally {
+      if (requestSequence === ordersRequestSequence.current) {
+        setOrdersLoading(false);
+        if (ordersController.current === controller) ordersController.current = null;
+      }
+    }
   }, []);
 
-  const handleCancel = async (order: Order) => {
-    if (!window.confirm(`确认取消订单「${order.product_name}」？${order.mileage_cost.toLocaleString()} 里程将退回余额。`)) return;
-    setCancellingId(order.id);
+  const loadMiles = useCallback(async () => {
+    const requestSequence = ++milesRequestSequence.current;
+    milesController.current?.abort();
+    const controller = new AbortController();
+    milesController.current = controller;
+    setLedgerLoading(true);
+    setLedgerError(null);
     try {
-      const res = await fetch(`/api/orders/${order.id}/cancel`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || '取消失败');
-        return;
+      const nextMiles = await fetchMilesData(controller.signal);
+      if (requestSequence !== milesRequestSequence.current) return;
+      setTransactions(nextMiles.transactions);
+      setBalance(nextMiles.balance);
+      setLedgerError(null);
+    } catch (error) {
+      if (requestSequence === milesRequestSequence.current && !isAbortError(error)) {
+        setLedgerError('里程明细暂时无法加载');
       }
-      toast.success(`订单已取消，${data.data.new_balance.toLocaleString()} 里程已退回`);
-      updateMilesBalance(data.data.new_balance);
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: 'cancelled' } : o)));
-      loadMiles();
-    } catch {
-      toast.error('取消失败，请稍后重试');
+    } finally {
+      if (requestSequence === milesRequestSequence.current) {
+        setLedgerLoading(false);
+        if (milesController.current === controller) milesController.current = null;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const initialOrdersSequence = ++ordersRequestSequence.current;
+    const initialMilesSequence = ++milesRequestSequence.current;
+    const initialOrdersController = new AbortController();
+    const initialMilesController = new AbortController();
+    ordersController.current = initialOrdersController;
+    milesController.current = initialMilesController;
+
+    fetchOrdersData(initialOrdersController.signal)
+      .then((nextOrders) => {
+        if (initialOrdersSequence !== ordersRequestSequence.current) return;
+        setOrders(nextOrders);
+        setOrdersError(null);
+      })
+      .catch((error) => {
+        if (initialOrdersSequence === ordersRequestSequence.current && !isAbortError(error)) {
+          setOrdersError('订单暂时无法加载');
+        }
+      })
+      .finally(() => {
+        if (initialOrdersSequence === ordersRequestSequence.current) setOrdersLoading(false);
+      });
+
+    fetchMilesData(initialMilesController.signal)
+      .then((nextMiles) => {
+        if (initialMilesSequence !== milesRequestSequence.current) return;
+        setTransactions(nextMiles.transactions);
+        setBalance(nextMiles.balance);
+        setLedgerError(null);
+      })
+      .catch((error) => {
+        if (initialMilesSequence === milesRequestSequence.current && !isAbortError(error)) {
+          setLedgerError('里程明细暂时无法加载');
+        }
+      })
+      .finally(() => {
+        if (initialMilesSequence === milesRequestSequence.current) setLedgerLoading(false);
+      });
+
+    return () => {
+      initialOrdersController.abort();
+      initialMilesController.abort();
+      ordersRequestSequence.current += 1;
+      milesRequestSequence.current += 1;
+    };
+  }, []);
+
+  const retryOrders = () => {
+    void loadOrders();
+  };
+
+  const retryMiles = () => {
+    void loadMiles();
+  };
+
+  const requestCancellation = (order: Order) => {
+    focusOrderAnchorOnClose.current = false;
+    lastCancelOrderId.current = order.id;
+    setCancelError(null);
+    setCancelOrder(order);
+  };
+
+  const handleCancel = async () => {
+    if (!cancelOrder) return;
+    setCancellingId(cancelOrder.id);
+    setCancelError(null);
+    try {
+      const response = await fetch(`/api/orders/${cancelOrder.id}/cancel`, { method: 'POST' });
+      const payload = await response.json() as { data?: { new_balance?: number }; error?: string };
+      if (!response.ok || typeof payload.data?.new_balance !== 'number') {
+        throw new Error(payload.error || '取消失败');
+      }
+      const newBalance = payload.data.new_balance;
+      updateMilesBalance(newBalance);
+      setBalance(newBalance);
+      setOrders((current) => current.map((order) => (
+        order.id === cancelOrder.id ? { ...order, status: 'cancelled' } : order
+      )));
+      focusOrderAnchorOnClose.current = true;
+      setCancelOrder(null);
+      toast.success(`订单已取消，余额已更新为 ${newBalance.toLocaleString()} 里程`);
+      setLedgerLoading(true);
+      void loadMiles();
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : '取消失败，请稍后重试');
     } finally {
       setCancellingId(null);
     }
   };
 
   const handleCopy = async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      window.setTimeout(() => setCopiedCode((current) => current === code ? null : current), 2000);
+    } catch {
+      setCopiedCode(null);
+      toast.error('券码复制失败，请手动选择复制');
+    }
   };
 
   const renderVoucherDetail = (order: Order) => {
@@ -131,17 +320,27 @@ export default function OrdersPage() {
             <p className="text-sm text-muted-foreground">
               {order.icon_type === 'bike' ? '骑行卡券码' : '酒店优惠券码'}
             </p>
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-              <code className="text-lg font-mono font-bold text-primary flex-1">
+            <div className="journey-voucher-panel flex min-w-0 items-center gap-2 rounded-lg p-3">
+              <code className="min-w-0 flex-1 break-all font-mono text-lg font-bold text-primary">
                 {order.voucher_code}
               </code>
-              <Button variant="ghost" size="icon-sm" onClick={() => handleCopy(order.voucher_code)}>
-                {copied ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`复制券码 ${order.voucher_code}`}
+                onClick={() => void handleCopy(order.voucher_code)}
+              >
+                {copiedCode === order.voucher_code
+                  ? <Check className="h-4 w-4 text-accent" aria-hidden="true" />
+                  : <Copy className="h-4 w-4" aria-hidden="true" />}
               </Button>
             </div>
+            <p className="sr-only" aria-live="polite">
+              {copiedCode === order.voucher_code ? '券码已复制' : ''}
+            </p>
             {order.icon_type === 'hotel' && (
-              <div className="flex justify-center pt-2">
-                <QRCodeSVG value={order.voucher_code} size={128} />
+              <div className="flex justify-center rounded-lg bg-white p-2">
+                <QRCodeSVG value={order.voucher_code} size={128} title="酒店优惠券二维码" />
               </div>
             )}
             <div className="flex justify-center pt-1">
@@ -164,10 +363,10 @@ export default function OrdersPage() {
       case 'tree':
         return (
           <div className="space-y-3">
-            <div className="p-4 bg-accent/10 rounded-lg text-center">
-              <TreePine className="h-8 w-8 text-accent mx-auto mb-2" />
+            <div className="journey-voucher-panel rounded-lg p-4 text-center">
+              <TreePine className="mx-auto mb-2 h-8 w-8 text-accent" aria-hidden="true" />
               <p className="text-sm font-medium text-primary">碳抵消证书</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-xs text-muted-foreground">
                 您已通过「{order.project_name || '阿拉善荒漠植树造林'}」项目种下
                 {order.quantity > 1 ? `${order.quantity} 棵树` : '一棵树'}
               </p>
@@ -187,12 +386,12 @@ export default function OrdersPage() {
                 buttonLabel="下载证书海报"
               />
             </div>
-            <div className="p-3 bg-muted rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Leaf className="h-4 w-4 text-accent" />
+            <div className="journey-voucher-panel rounded-lg p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Leaf className="h-4 w-4 text-accent" aria-hidden="true" />
                 <span className="text-xs font-medium">绿色出行小贴士</span>
               </div>
-              <p className="text-xs text-muted-foreground">{TIPS[0]}</p>
+              <p className="text-xs text-muted-foreground">{TIP}</p>
             </div>
           </div>
         );
@@ -200,20 +399,18 @@ export default function OrdersPage() {
       case 'bag':
         return (
           <div className="space-y-3">
-            <div className="p-4 bg-muted rounded-lg text-center">
-              <ShoppingBag className="h-8 w-8 text-accent mx-auto mb-2" />
+            <div className="journey-voucher-panel rounded-lg p-4 text-center">
+              <ShoppingBag className="mx-auto mb-2 h-8 w-8 text-accent" aria-hidden="true" />
               <p className="text-sm font-medium text-primary">订单状态</p>
               <Badge variant="secondary" className="mt-2">
                 {(STATUS_MAP[order.status] || { label: order.status }).label}
               </Badge>
-              <p className="text-xs text-muted-foreground mt-2">
-                我们将在 3-5 个工作日内发货
-              </p>
+              <p className="mt-2 text-xs text-muted-foreground">我们将在 3-5 个工作日内发货</p>
             </div>
             {order.address && (
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-xs font-medium mb-1">收货信息</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">{order.address}</p>
+              <div className="journey-voucher-panel rounded-lg p-3">
+                <p className="mb-1 text-xs font-medium">收货信息</p>
+                <p className="break-words text-xs leading-relaxed text-muted-foreground">{order.address}</p>
               </div>
             )}
           </div>
@@ -225,147 +422,197 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1280px] px-4 py-8">
+    <div className="journey-page">
+      <div className="relative mx-auto max-w-[1280px] px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary">我的订单</h1>
-          <p className="text-muted-foreground mt-2">
-            查看兑换记录和凭证
-          </p>
+          <p className="mt-2 text-muted-foreground">查看兑换记录、里程明细和兑换凭证</p>
         </div>
 
-        {loading ? (
-          <div className="text-center py-16 text-muted-foreground">
-            加载中...
-          </div>
-        ) : (
-          <Tabs defaultValue="orders">
-            <TabsList className="mb-4">
-              <TabsTrigger value="orders">订单历史</TabsTrigger>
-              <TabsTrigger value="miles">余额明细</TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="orders">
+          <TabsList className="mb-4 grid h-auto w-full grid-cols-2 sm:w-fit">
+            <TabsTrigger value="orders">订单历史</TabsTrigger>
+            <TabsTrigger value="miles">余额明细</TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="orders">
-              {orders.length > 0 ? (
-                <div className="space-y-4">
-                  {orders.map((order) => {
-                    const Icon = ICON_MAP[order.icon_type] || ShoppingBag;
-                    const status = STATUS_MAP[order.status] || { label: order.status, variant: 'outline' as const };
-                    const cancellable = order.status === 'pending';
+          <TabsContent value="orders">
+            {ordersLoading ? (
+              <div className="journey-surface-light border py-16 text-center text-muted-foreground" role="status">
+                加载订单中...
+              </div>
+            ) : ordersError ? (
+              <div className="journey-surface-light border py-16 text-center" role="alert">
+                <p className="text-muted-foreground">{ordersError}</p>
+                <Button variant="outline" className="mt-4" onClick={retryOrders}>
+                  <RefreshCw aria-hidden="true" />
+                  重试订单
+                </Button>
+              </div>
+            ) : orders.length > 0 ? (
+              <div className="space-y-4">
+                {orders.map((order) => {
+                  const Icon = ICON_MAP[order.icon_type] || ShoppingBag;
+                  const status = STATUS_MAP[order.status] || { label: order.status, variant: 'outline' as const };
+                  const cancellable = order.status === 'pending';
 
-                    return (
-                      <Card
-                        key={order.id}
-                        className={cn(
-                          'border border-[#E2E8F0] transition-shadow',
-                          order.status !== 'cancelled' && 'cursor-pointer hover:shadow-md'
-                        )}
-                        onClick={() => order.status !== 'cancelled' && setSelectedOrder(order)}
-                      >
-                        <CardContent className="p-4 flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center">
-                              <Icon className="h-5 w-5 text-accent" />
-                            </div>
-                            <div>
-                              <p className={cn('font-medium text-primary', order.status === 'cancelled' && 'line-through opacity-70')}>
-                                {order.product_name}
-                                {order.quantity > 1 && (
-                                  <span className="text-muted-foreground"> × {order.quantity}</span>
-                                )}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(order.created_at).toLocaleString('zh-CN')}
-                              </p>
-                            </div>
+                  return (
+                    <Card
+                      key={order.id}
+                      ref={(element) => {
+                        if (element) orderFocusRefs.current.set(order.id, element);
+                        else orderFocusRefs.current.delete(order.id);
+                      }}
+                      tabIndex={-1}
+                      aria-label={`订单 ${order.product_name} 状态区`}
+                      className="journey-surface-light border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-4">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10">
+                            <Icon className="h-5 w-5 text-accent" aria-hidden="true" />
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-bold text-accent whitespace-nowrap">
-                              -{order.mileage_cost.toLocaleString()} 里程
-                            </span>
-                            {cancellable && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={cancellingId === order.id}
-                                aria-label={`取消订单 ${order.product_name}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancel(order);
-                                }}
-                              >
-                                {cancellingId === order.id ? '取消中...' : '取消订单'}
-                              </Button>
-                            )}
-                            <Badge variant={status.variant}>{status.label}</Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-16">
-                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                    <FolderOpen className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-muted-foreground">暂无兑换记录</p>
-                  <Link
-                    href="/mall"
-                    className={cn(buttonVariants({ variant: 'outline' }), 'mt-4')}
-                  >
-                    去商城看看
-                  </Link>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="miles">
-              <Card className="border border-[#E2E8F0]">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 pb-4 mb-2 border-b border-[#E2E8F0]">
-                    <Wallet className="h-5 w-5 text-accent" />
-                    <span className="text-sm text-muted-foreground">当前余额</span>
-                    <span className="ml-auto text-xl font-bold text-primary">
-                      {(balance ?? 0).toLocaleString()}
-                    </span>
-                  </div>
-                  {transactions.length > 0 ? (
-                    <div className="divide-y divide-[#E2E8F0]">
-                      {transactions.map((tx) => (
-                        <div key={tx.id} className="flex items-center justify-between gap-4 py-3">
-                          <div>
-                            <p className="text-sm text-primary">{tx.description || (tx.type === 'grant' ? '发放' : tx.type === 'refund' ? '退款' : '兑换')}</p>
+                          <div className="min-w-0">
+                            <p className={cn('break-words font-medium text-primary', order.status === 'cancelled' && 'line-through opacity-70')}>
+                              {order.product_name}
+                              {order.quantity > 1 && <span className="text-muted-foreground"> × {order.quantity}</span>}
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(tx.created_at).toLocaleString('zh-CN')}
+                              {new Date(order.created_at).toLocaleString('zh-CN')}
                             </p>
                           </div>
-                          <span
-                            className={cn(
-                              'text-sm font-bold font-mono',
-                              tx.amount > 0 ? 'text-accent' : 'text-destructive'
-                            )}
-                          >
-                            {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
-                          </span>
                         </div>
-                      ))}
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <span className="mr-auto whitespace-nowrap text-sm font-bold text-accent sm:mr-1">
+                            -{order.mileage_cost.toLocaleString()} 里程
+                          </span>
+                          {order.status !== 'cancelled' && (
+                            <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
+                              查看凭证
+                            </Button>
+                          )}
+                          {cancellable && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`取消订单 ${order.product_name}`}
+                              onClick={() => requestCancellation(order)}
+                            >
+                              取消订单
+                            </Button>
+                          )}
+                          <Badge variant={status.variant}>{status.label}</Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="journey-surface-light border py-16 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                  <FolderOpen className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                </div>
+                <p className="text-muted-foreground">暂无兑换记录</p>
+                <Link href="/mall" className={cn(buttonVariants({ variant: 'outline' }), 'mt-4')}>
+                  去商城看看
+                </Link>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="miles">
+            <Card className="journey-data-panel border">
+              <CardContent className="p-4">
+                {ledgerLoading ? (
+                  <p className="py-12 text-center text-muted-foreground" role="status">加载里程明细中...</p>
+                ) : ledgerError ? (
+                  <div className="py-12 text-center" role="alert">
+                    <p className="text-muted-foreground">{ledgerError}</p>
+                    <Button variant="outline" className="mt-4" onClick={retryMiles}>
+                      <RefreshCw aria-hidden="true" />
+                      重试明细
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-2 flex items-center gap-2 border-b border-border pb-4">
+                      <Wallet className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+                      <span className="text-sm text-muted-foreground">当前余额</span>
+                      <span className="ml-auto break-all text-right text-xl font-bold text-primary">
+                        {(balance ?? 0).toLocaleString()}
+                      </span>
                     </div>
-                  ) : (
-                    <p className="text-center py-8 text-muted-foreground">暂无里程记录</p>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        )}
+                    {transactions.length > 0 ? (
+                      <div className="divide-y divide-border">
+                        {transactions.map((transaction) => (
+                          <div key={transaction.id} className="journey-data-row flex items-start justify-between gap-3 py-3">
+                            <div className="min-w-0">
+                              <p className="break-words text-sm text-primary">
+                                {transaction.description || (transaction.type === 'grant' ? '发放' : transaction.type === 'refund' ? '退款' : '兑换')}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(transaction.created_at).toLocaleString('zh-CN')}
+                              </p>
+                            </div>
+                            <span className={cn('shrink-0 font-mono text-sm font-bold', transaction.amount > 0 ? 'text-accent' : 'text-destructive')}>
+                              {transaction.amount > 0 ? '+' : ''}{transaction.amount.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="py-8 text-center text-muted-foreground">暂无里程记录</p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
-      {/* Voucher Detail Dialog */}
-      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog
+        open={cancelOrder !== null}
+        onOpenChange={(open) => {
+          if (!open && cancellingId === null) {
+            setCancelOrder(null);
+            setCancelError(null);
+          }
+        }}
+        onOpenChangeComplete={(open) => {
+          if (!open && focusOrderAnchorOnClose.current && lastCancelOrderId.current !== null) {
+            orderFocusRefs.current.get(lastCancelOrderId.current)?.focus({ preventScroll: true });
+            focusOrderAnchorOnClose.current = false;
+          }
+        }}
+      >
+        <DialogContent
+          className="journey-portal-surface sm:max-w-sm"
+          finalFocus={() => focusOrderAnchorOnClose.current ? false : true}
+        >
+          <DialogHeader>
+            <DialogTitle>确认取消订单</DialogTitle>
+            <DialogDescription>
+              {cancelOrder && `确认取消「${cancelOrder.product_name}」？${cancelOrder.mileage_cost.toLocaleString()} 里程将退回余额。`}
+            </DialogDescription>
+          </DialogHeader>
+          {cancelError && <p className="text-sm text-destructive" role="alert">{cancelError}，可重试。</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={cancellingId !== null} onClick={() => setCancelOrder(null)}>
+              暂不取消
+            </Button>
+            <Button variant="destructive" disabled={cancellingId !== null} onClick={() => void handleCancel()}>
+              {cancellingId !== null ? '取消中...' : cancelError ? '重试取消' : '确认取消'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={selectedOrder !== null} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent className="journey-portal-surface sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>凭证详情</DialogTitle>
+            <DialogDescription>{selectedOrder?.product_name}</DialogDescription>
           </DialogHeader>
           {selectedOrder && renderVoucherDetail(selectedOrder)}
         </DialogContent>

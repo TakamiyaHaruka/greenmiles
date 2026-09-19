@@ -30,7 +30,11 @@ export function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const count = itemCount();
   const isHome = pathname === '/';
-  const hasGlassAppearance = isHome || pathname === '/mall' || pathname === '/calculator';
+  const hasGlassAppearance = isHome
+    || pathname === '/mall'
+    || pathname === '/calculator'
+    || pathname === '/orders'
+    || pathname === '/footprint';
   const isInitializing = initializationStatus === 'idle' || initializationStatus === 'loading';
 
   useEffect(() => {

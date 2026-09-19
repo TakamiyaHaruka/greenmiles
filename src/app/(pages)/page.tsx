@@ -27,7 +27,8 @@ type LoadState = 'loading' | 'success' | 'error';
 interface PersonalImpact {
   flightCount: number;
   totalCo2Kg: number;
-  myTrees: number;
+  redeemedMiles: number;
+  treeCount: number;
 }
 
 interface PlatformStats {
@@ -45,12 +46,26 @@ async function fetchProducts(): Promise<Product[]> {
 
 class SessionExpiredError extends Error {}
 
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isPersonalImpact(value: unknown): value is PersonalImpact {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<PersonalImpact>;
+  return Number.isInteger(candidate.flightCount) && isNonNegativeNumber(candidate.flightCount)
+    && isNonNegativeNumber(candidate.totalCo2Kg)
+    && Number.isInteger(candidate.redeemedMiles) && isNonNegativeNumber(candidate.redeemedMiles)
+    && Number.isInteger(candidate.treeCount) && isNonNegativeNumber(candidate.treeCount);
+}
+
 async function fetchPersonalImpact(): Promise<PersonalImpact> {
-  const response = await fetch('/api/carbon');
+  const response = await fetch('/api/impact');
   if (response.status === 401) throw new SessionExpiredError('session expired');
   if (!response.ok) throw new Error('personal request failed');
-  const payload = await response.json();
-  return payload.data as PersonalImpact;
+  const payload = await response.json() as { data?: unknown };
+  if (!isPersonalImpact(payload.data)) throw new Error('personal response invalid');
+  return payload.data;
 }
 
 async function fetchPlatformStats(): Promise<PlatformStats> {
@@ -343,7 +358,7 @@ export default function HomePage() {
             id="personal-summary-title"
             eyebrow="My journey"
             title="我的绿色旅程"
-            description="这里只展示当前账户的余额、已保存航班与有效碳抵消商品记录，不混入平台数据。"
+            description="这里只展示当前账户的全量账本、已保存航班与有效植树凭证，不混入平台数据。"
           />
 
           {isInitializing ? (
@@ -383,11 +398,12 @@ export default function HomePage() {
               </Button>
             </div>
           ) : personalImpact ? (
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { icon: Plane, label: '已保存航班', value: personalImpact.flightCount.toLocaleString(), unit: '段' },
                 { icon: Gauge, label: '飞行碳足迹', value: personalImpact.totalCo2Kg.toLocaleString(), unit: 'kg CO₂' },
-                { icon: TreePine, label: '支持树量', value: personalImpact.myTrees.toLocaleString(), unit: '棵*' },
+                { icon: ShoppingBag, label: '绿色兑换净额', value: personalImpact.redeemedMiles.toLocaleString(), unit: '里程' },
+                { icon: TreePine, label: '支持树量', value: personalImpact.treeCount.toLocaleString(), unit: '棵*' },
               ].map((item) => (
                 <div key={item.label} className="home-surface-light border p-5 sm:p-6">
                   <item.icon className="h-5 w-5 text-emerald-700" aria-hidden="true" />
@@ -397,7 +413,7 @@ export default function HomePage() {
                   </p>
                 </div>
               ))}
-              <p className="text-xs text-muted-foreground md:col-span-3">* 支持树量沿用现有演示口径：有效碳抵消商品订单数量。</p>
+              <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">* 兑换净额按全量账本计算；树量只计未取消的 TREE- 凭证订单。</p>
             </div>
           ) : null}
         </div>
@@ -453,13 +469,13 @@ export default function HomePage() {
         <div className="home-surface-heavy mx-auto flex max-w-[1280px] flex-col justify-between gap-6 border p-6 sm:p-8 lg:flex-row lg:items-center">
           <div>
             <p className="text-xs font-bold tracking-[0.2em] text-emerald-700 uppercase">Next step</p>
-            <h2 className="mt-2 text-2xl font-bold text-primary">回看每一段飞行留下的足迹</h2>
+            <h2 className="mt-2 text-2xl font-bold text-primary">收藏每一次绿色选择留下的成果</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              查看已保存的航班、月度趋势与季度分析；“我的成果”将在后续阶段接入完整汇总。
+              查看全部时间的兑换净额、植树收藏、行动里程碑和隐私安全的分享卡。
             </p>
           </div>
-          <Link href="/footprint" className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5')}>
-            查看我的碳足迹 <ArrowRight aria-hidden="true" />
+          <Link href="/impact" className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5')}>
+            查看我的成果 <ArrowRight aria-hidden="true" />
           </Link>
         </div>
       </section>

@@ -20,6 +20,7 @@ vi.mock('@/lib/auth', () => ({
 
 import { POST, GET } from './route';
 import { getAuthUser } from '@/lib/auth';
+import db from '@/lib/db';
 import { NextRequest } from 'next/server';
 
 function makePostRequest(body: unknown, cookie = 'token=valid') {
@@ -113,8 +114,11 @@ describe('GET /api/carbon', () => {
     expect(data.data.flightCount).toBe(2);
     expect(data.data.totalCo2Kg).toBe(193.5);
     expect(data.data.records).toHaveLength(1);
-    // Standing trees = carbon redemptions excluding cancelled orders (2nd get: stats → trees)
+    // Standing trees = immutable TREE vouchers excluding cancelled orders.
     expect(data.data.myTrees).toBe(3);
     expect(mockGet).toHaveBeenNthCalledWith(2, 1);
+    const sql = vi.mocked(db.prepare).mock.calls.map(([statement]) => String(statement)).join('\n');
+    expect(sql).toContain("voucher_code LIKE 'TREE-%'");
+    expect(sql).not.toContain("p.category = 'carbon'");
   });
 });

@@ -148,7 +148,7 @@ test.describe('phase 1 home experience', () => {
     expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001);
   });
 
-  test('one saved appearance follows the member from home through calculator and mall only', async ({ page }) => {
+  test('one saved appearance follows the member through the completed journey routes only', async ({ page }) => {
     await createAndLoginUser(page);
     await page.goto('/');
     await page.getByRole('button', { name: '玻璃外观' }).click();
@@ -180,6 +180,15 @@ test.describe('phase 1 home experience', () => {
     await expect(page.getByRole('button', { name: '打开导航菜单' })).toBeFocused();
 
     await page.goto('/orders');
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.getByRole('button', { name: '玻璃外观' })).toBeVisible();
+
+    await page.goto('/footprint');
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.locator('.journey-surface-heavy').first()).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
+
+    await page.goto('/login');
     await expect(page.locator('nav')).not.toHaveClass(/journey-nav|home-nav/);
     await expect(page.getByRole('button', { name: '玻璃外观' })).toHaveCount(0);
   });

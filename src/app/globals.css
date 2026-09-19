@@ -230,6 +230,30 @@
     border: 1px solid var(--home-solid-border);
     border-radius: 1rem;
     background: var(--home-solid-heavy);
+    box-shadow: var(--home-shadow-light);
+  }
+
+  .journey-data-panel {
+    border-color: var(--home-solid-border) !important;
+    border-radius: var(--home-surface-radius);
+    background: var(--home-solid-heavy) !important;
+    box-shadow: var(--home-shadow-light);
+  }
+
+  .journey-chart-panel .recharts-cartesian-axis-tick-value {
+    fill: var(--muted-foreground);
+  }
+
+  .journey-chart-panel .recharts-cartesian-grid line {
+    stroke: var(--home-solid-border);
+  }
+
+  .journey-chart-tooltip {
+    border: 1px solid var(--journey-control-border) !important;
+    border-radius: 0.75rem !important;
+    background: var(--home-solid-heavy) !important;
+    color: var(--foreground) !important;
+    box-shadow: var(--home-shadow-light);
   }
 
   .journey-page [data-slot="tabs-list"],

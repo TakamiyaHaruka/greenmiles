@@ -33,7 +33,7 @@ function ctx(id = '5') {
   return { params: Promise.resolve({ id }) };
 }
 
-// The joined row the cancel transaction reads first
+// The order row the cancel transaction reads first
 function pendingOrder(overrides: Record<string, unknown> = {}) {
   return {
     id: 5,
@@ -41,9 +41,17 @@ function pendingOrder(overrides: Record<string, unknown> = {}) {
     product_id: 4,
     quantity: 2,
     status: 'pending',
-    total_cost: 1000,
-    product_name: '帆布袋',
     miles_balance: 9000,
+    ...overrides,
+  };
+}
+
+function redemption(overrides: Record<string, unknown> = {}) {
+  return {
+    redeemCount: 1,
+    refundCount: 0,
+    amount: -1000,
+    description: '兑换「帆布袋」',
     ...overrides,
   };
 }
@@ -81,7 +89,6 @@ describe('POST /api/orders/[id]/cancel', () => {
     mockGet.mockReturnValueOnce(pendingOrder({ user_id: 2 }));
 
     const response = await POST(makeRequest(), ctx());
-    const data = await response.json();
     expect(response.status).toBe(403);
   });
 
@@ -97,16 +104,20 @@ describe('POST /api/orders/[id]/cancel', () => {
 
   it('returns 400 when the conditional update loses the race (changes = 0)', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
-    mockGet.mockReturnValueOnce(pendingOrder());
+    mockGet
+      .mockReturnValueOnce(pendingOrder())
+      .mockReturnValueOnce(redemption());
     mockRun.mockReturnValueOnce({ changes: 0 });
 
     const response = await POST(makeRequest(), ctx());
     expect(response.status).toBe(400);
   });
 
-  it('cancels, refunds miles, restores stock and writes the refund ledger row', async () => {
+  it('refunds the original redeem amount after the product price changes', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
-    mockGet.mockReturnValueOnce(pendingOrder());
+    mockGet
+      .mockReturnValueOnce(pendingOrder())
+      .mockReturnValueOnce(redemption({ amount: -1000 }));
     mockRun.mockReturnValueOnce({ changes: 1 }); // UPDATE orders
 
     const response = await POST(makeRequest(), ctx());
@@ -119,5 +130,24 @@ describe('POST /api/orders/[id]/cancel', () => {
     expect(mockRun).toHaveBeenNthCalledWith(3, 2, 4);
     // 4th write is the refund ledger row linked to the order
     expect(mockRun).toHaveBeenNthCalledWith(4, 1, 1000, 5, '取消订单「帆布袋」退款');
+  });
+
+  it.each([
+    ['missing redeem row', undefined],
+    ['multiple redeem rows', redemption({ redeemCount: 2 })],
+    ['an existing refund row', redemption({ refundCount: 1 })],
+    ['an unsafe integer amount', redemption({ amount: Number.MIN_SAFE_INTEGER - 1 })],
+  ])('fails safely without changing the order for %s', async (_label, ledger) => {
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
+    mockGet
+      .mockReturnValueOnce(pendingOrder())
+      .mockReturnValueOnce(ledger);
+
+    const response = await POST(makeRequest(), ctx());
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.error).toBe('兑换账本不一致，无法安全退款');
+    expect(mockRun).not.toHaveBeenCalled();
   });
 });

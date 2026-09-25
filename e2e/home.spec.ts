@@ -44,6 +44,7 @@ test.describe('phase 1 home experience', () => {
     await page.goto('/');
 
     await expect(page.getByText('已保存航班').locator('..').getByText(/^0 段$/)).toBeVisible();
+    await expect(page.getByText('绿色兑换净额').locator('..').getByText(/^0 里程$/)).toBeVisible();
     await expect(page.getByText('支持树量').locator('..').getByText(/^0 棵\*$/)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'GreenMiles 平台概览' })).toBeVisible();
 
@@ -83,6 +84,25 @@ test.describe('phase 1 home experience', () => {
     await expect(page.getByText('10,000', { exact: true }).first()).toBeVisible();
   });
 
+  test('a malformed impact response stays in a retryable personal-data error state', async ({ page }) => {
+    await createAndLoginUser(page);
+    await page.route('**/api/impact', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: { flightCount: 0, totalCo2Kg: 0, redeemedMiles: null, treeCount: 0 },
+      }),
+    }));
+    await page.goto('/');
+
+    await expect(page.getByText('个人数据暂时无法读取')).toBeVisible();
+    await expect(page.getByText('游客状态不会显示虚构的个人成果。')).not.toBeVisible();
+
+    await page.unroute('**/api/impact');
+    await page.getByText('个人数据暂时无法读取').locator('..').locator('..').getByRole('button', { name: '重试' }).click();
+    await expect(page.getByText('绿色兑换净额').locator('..').getByText(/^0 里程$/)).toBeVisible();
+  });
+
   test('member with activity sees personal data rather than platform totals', async ({ page }) => {
     await createAndLoginUser(page);
     await page.request.post('/api/carbon', {
@@ -97,9 +117,11 @@ test.describe('phase 1 home experience', () => {
 
     await page.goto('/');
     await expect(page.getByText('已保存航班').locator('..').getByText(/^1 段$/)).toBeVisible();
+    await expect(page.getByText('绿色兑换净额').locator('..').getByText(/^3,000 里程$/)).toBeVisible();
     await expect(page.getByText('支持树量').locator('..').getByText(/^1 棵\*$/)).toBeVisible();
     await expect(page.getByText('飞行碳足迹').locator('..').getByText(/^90 kg CO₂$/)).toBeVisible();
-    await expect(page.getByText(/现有演示口径/)).toBeVisible();
+    await expect(page.getByText(/全量账本计算/)).toBeVisible();
+    await expect(page.getByRole('link', { name: '查看我的成果' })).toHaveAttribute('href', '/impact');
   });
 
   test('320px member navigation contains a long balance without overflowing', async ({ page }) => {
@@ -133,6 +155,7 @@ test.describe('phase 1 home experience', () => {
     await expect(page.getByRole('link', { name: '商城', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: '订单', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: '碳足迹', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '我的成果', exact: true })).toBeVisible();
     await page.getByRole('link', { name: '商城', exact: true }).focus();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: '打开导航菜单' })).toBeFocused();
@@ -186,6 +209,11 @@ test.describe('phase 1 home experience', () => {
     await page.goto('/footprint');
     await expect(page.locator('nav')).toHaveClass(/journey-nav/);
     await expect(page.locator('.journey-surface-heavy').first()).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
+
+    await page.goto('/impact');
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.getByRole('heading', { name: '我的成果', exact: true })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
 
     await page.goto('/login');

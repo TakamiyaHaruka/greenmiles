@@ -18,6 +18,7 @@ const navLinks = [
   { href: '/mall', label: '商城' },
   { href: '/orders', label: '订单' },
   { href: '/footprint', label: '碳足迹' },
+  { href: '/impact', label: '我的成果' },
 ];
 
 export function Navbar() {
@@ -34,7 +35,8 @@ export function Navbar() {
     || pathname === '/mall'
     || pathname === '/calculator'
     || pathname === '/orders'
-    || pathname === '/footprint';
+    || pathname === '/footprint'
+    || pathname === '/impact';
   const isInitializing = initializationStatus === 'idle' || initializationStatus === 'loading';
 
   useEffect(() => {
@@ -83,7 +85,7 @@ export function Navbar() {
             </span>
           </Link>
 
-          <div className={cn('items-center gap-6', hasGlassAppearance ? 'hidden lg:flex' : 'flex')}>
+          <div className={cn('items-center gap-4 xl:gap-6', hasGlassAppearance ? 'hidden lg:flex' : 'flex')}>
             {navLinks.map((link) => (
               <Link
                 key={link.href}

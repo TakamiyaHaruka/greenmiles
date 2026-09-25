@@ -50,11 +50,12 @@ export async function GET(request: NextRequest) {
       SELECT * FROM carbon_records WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 50
     `).all(payload.userId);
 
-    // Trees actually standing: carbon redemptions minus cancelled orders
+    // The voucher prefix is fixed when the order is created, so later product
+    // category/icon edits cannot rewrite the member's historical tree count.
     const myTrees = db.prepare(`
       SELECT COALESCE(SUM(o.quantity), 0) AS trees
-      FROM orders o JOIN products p ON o.product_id = p.id
-      WHERE o.user_id = ? AND p.category = 'carbon' AND o.status != 'cancelled'
+      FROM orders o
+      WHERE o.user_id = ? AND o.voucher_code LIKE 'TREE-%' AND o.status != 'cancelled'
     `).get(payload.userId) as { trees: number };
 
     return NextResponse.json({

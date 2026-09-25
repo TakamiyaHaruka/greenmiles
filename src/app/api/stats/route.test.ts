@@ -19,6 +19,7 @@ vi.mock('@/lib/auth', () => ({
 
 import { GET } from './route';
 import { getAuthUser } from '@/lib/auth';
+import db from '@/lib/db';
 import { NextRequest } from 'next/server';
 
 function getRequest(cookie = 'token=valid') {
@@ -73,6 +74,11 @@ describe('GET /api/stats', () => {
     // Oldest month first
     expect(data.data.monthly[0].month).toBe('2026-07');
     expect(data.data.monthly[1].offsetKg).toBe(22);
+    const sql = vi.mocked(db.prepare).mock.calls.map(([statement]) => String(statement)).join('\n');
+    expect(sql).toContain("type IN ('redeem', 'refund')");
+    expect(sql).toContain("cancelled.status = 'cancelled'");
+    expect(sql).toContain("voucher_code LIKE 'TREE-%'");
+    expect(sql).not.toContain('p.mileage_cost * o.quantity');
   });
 
   it('handles an empty platform without dividing by zero', async () => {

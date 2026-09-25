@@ -24,7 +24,7 @@ The core experience journey: **Reveal** (see the emission) → **Offset** (take 
 
 ## Experience
 
-The home page leads with a member miles card and available green products. Guests can browse featured items before signing in; members see their actual balance and personal activity. The home page, mall, and calculator share a light, green-tinted visual style, with a saved appearance toggle for switching between glass and standard surfaces on those pages.
+The home page leads with a member miles card and available green products. Guests can browse featured items before signing in; members see their actual balance and personal activity. Every page shares the same light, green-tinted design system and a saved appearance toggle for switching between glass and standard surfaces, including authentication and the admin console.
 
 ## Screenshots
 
@@ -35,6 +35,12 @@ The home page leads with a member miles card and available green products. Guest
 **Member home — the balance and personal activity come from the database (no mock numbers):**
 
 ![Member home](docs/screenshots/dashboard.png)
+
+**Authentication — responsive, accessible login and registration forms:**
+
+![Login](docs/screenshots/login.png)
+
+![Register](docs/screenshots/register.png)
 
 **Carbon calculator:**
 
@@ -47,6 +53,10 @@ The home page leads with a member miles card and available green products. Guest
 **Footprint page — monthly trend, quarterly report, 10-year projection and downloadable certificates:**
 
 ![Footprint](docs/screenshots/footprint.png)
+
+**Personal impact — a shareable summary of the member's greener choices:**
+
+![Personal impact](docs/screenshots/impact.png)
 
 **Orders — redemption history, cancellation, and the miles ledger:**
 
@@ -63,6 +73,7 @@ The home page leads with a member miles card and available green products. Guest
 ## Features
 
 - 🔐 **Auth** — register / login / logout with JWT (httpOnly cookie) and bcrypt password hashing
+- ✨ **Site-wide appearance** — one persistent glass / standard material preference across every public, member, and admin route, with reduced-transparency and reduced-motion fallbacks
 - 🧮 **Carbon calculator** — import by flight number (seeded demo data) or pick departure/arrival airports and the great-circle distance is computed locally from built-in airport coordinates; combine with aircraft type and cabin class to get CO₂ plus a relatable analogy ("a tree's X days of absorption"); save flights to your carbon-footprint history (the server recomputes the value before persisting it)
 - 🛒 **Miles mall** — 4 product types (physical goods, vouchers, carbon offsets, donations) with stock, cart dialog, multi-quantity settlement (1–10 per order) and a shipping-address form for physical goods
 - 🎫 **Voucher proof** — each redemption produces a voucher code with QR code; physical orders go to a `pending` (awaiting shipment) state; vouchers and tree certificates can be downloaded as share posters (Canvas → PNG with QR, zero extra runtime deps)
@@ -72,6 +83,7 @@ The home page leads with a member miles card and available green products. Guest
 - 🌍 **Offset credibility** — carbon products carry a project name, certification standard and vintage (editable in admin, seeded for the tree product); the footprint page projects 10 years of fixation (22 kg/tree/year)
 - 📊 **Order history & live KPI dashboard** — past orders plus platform stats from `/api/stats`: total CO₂ offset (22 kg per redeemed tree), miles conversion rate, redemption count, and your personal flight footprint
 - 📈 **Footprint page** — `/footprint` with monthly emission trend chart, latest-quarter report card, standing-tree count and the last 50 flight records
+- 🌿 **Personal impact** — `/impact` turns member activity into an evidence-backed, shareable summary without inventing data while loading, empty, or unavailable
 - 🛠️ **Admin console** — `/admin` with product CRUD (including offset-project fields) and order management, gated by an `ADMIN_PASSWORD` session separate from member accounts; products with existing orders cannot be deleted
 - 🗄️ **Zero-config SQLite** — database is created, migrated and seeded automatically on first run
 
@@ -134,18 +146,18 @@ These are simplified illustrative factors for demo purposes, not an official met
 ## Testing
 
 - **Unit (Vitest + Testing Library)** — covers the carbon engine, airport coordinates & distance, flight provider, auth helpers, Zod schemas, API routes, ledger migration, poster/footprint helpers, route guards, appearance preferences, and Zustand stores. Run `npm test`.
-- **E2E (Playwright)** — exercises the home appearance toggle, mall and calculator, registration and login, redemption and voucher QR codes, order cancellation and refunds, admin fulfilment, footprint reports, and route guards against a production build with an isolated, freshly seeded SQLite database. First run needs `npx playwright install chromium`; then run `npm run test:e2e`.
+- **E2E (Playwright)** — exercises the persistent site-wide appearance toggle, reduced-transparency/motion fallbacks, narrow auth/admin flows, mall and calculator, registration and login, redemption and voucher QR codes, order cancellation and refunds, admin fulfilment, footprint and impact reports, and route guards against a production build with an isolated, freshly seeded SQLite database. First run needs `npx playwright install chromium`; then run `npm run test:e2e`.
 
 ## Project structure
 
 ```
 src/
 ├── app/
-│   ├── (pages)/        # home, calculator, mall, orders, footprint, admin, login, register
+│   ├── (pages)/        # home, calculator, mall, orders, footprint, impact, admin, login, register
 │   └── api/            # auth, products, orders (+ cancel), miles, carbon, stats, admin route handlers
 ├── components/         # feature components (incl. SharePoster) + shadcn/ui primitives
 ├── lib/                # db, auth, carbon engine, airport coords, flight provider, poster/footprint helpers, zod schemas
-├── stores/             # zustand stores (user, cart, carbon)
+├── stores/             # zustand stores (user, cart, carbon, appearance)
 └── proxy.ts            # JWT route protection (Next.js 16 proxy convention)
 ```
 

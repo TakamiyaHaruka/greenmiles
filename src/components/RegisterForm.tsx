@@ -53,12 +53,13 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4" aria-busy={isLoading}>
       <FormField
         id="email"
         label="邮箱"
         type="email"
         placeholder="your@email.com"
+        autoComplete="email"
         error={errors.email?.message}
         registration={register('email')}
       />
@@ -68,6 +69,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         label="密码"
         type="password"
         placeholder="至少 6 位"
+        autoComplete="new-password"
         error={errors.password?.message}
         registration={register('password')}
       />
@@ -77,6 +79,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         label="确认密码"
         type="password"
         placeholder="再次输入密码"
+        autoComplete="new-password"
         error={errors.confirmPassword?.message}
         registration={register('confirmPassword')}
       />

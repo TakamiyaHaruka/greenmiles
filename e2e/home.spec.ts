@@ -6,7 +6,7 @@ import { createAndLoginUser } from './helpers';
 const E2E_DB = path.join(process.cwd(), 'e2e', 'greenmiles-e2e.db');
 
 test.describe('phase 1 home experience', () => {
-  test('guest sees the commerce-first home and appearance persists without leaking styles', async ({ page }) => {
+  test('guest sees the commerce-first home and appearance persists across the site', async ({ page }) => {
     await page.goto('/');
 
     await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
@@ -35,8 +35,9 @@ test.describe('phase 1 home experience', () => {
     await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
 
     await page.goto('/login');
-    await expect(page.locator('nav')).not.toHaveClass(/home-nav/);
-    await expect(page.getByPlaceholder('Coming Soon')).toBeVisible();
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.getByRole('button', { name: '玻璃外观' })).toBeVisible();
+    await expect(page.getByPlaceholder('Coming Soon')).toHaveCount(0);
   });
 
   test('new member sees real zero-state data and can add a featured product to the cart', async ({ page }) => {
@@ -171,7 +172,7 @@ test.describe('phase 1 home experience', () => {
     expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001);
   });
 
-  test('one saved appearance follows the member through the completed journey routes only', async ({ page }) => {
+  test('one saved appearance follows the member through every route', async ({ page }) => {
     await createAndLoginUser(page);
     await page.goto('/');
     await page.getByRole('button', { name: '玻璃外观' }).click();
@@ -217,8 +218,9 @@ test.describe('phase 1 home experience', () => {
     await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
 
     await page.goto('/login');
-    await expect(page.locator('nav')).not.toHaveClass(/journey-nav|home-nav/);
-    await expect(page.getByRole('button', { name: '玻璃外观' })).toHaveCount(0);
+    await expect(page.locator('nav')).toHaveClass(/journey-nav/);
+    await expect(page.getByRole('button', { name: '玻璃外观' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
   });
 
   test('stage-two portals and surfaces respect reduced transparency and motion', async ({ page }) => {

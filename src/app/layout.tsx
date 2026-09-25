@@ -43,7 +43,16 @@ export default function RootLayout({
         <UserInitializer />
         <Navbar />
         <main className="flex-1">{children}</main>
-        <Toaster position="top-center" richColors />
+        <Toaster
+          position="top-center"
+          richColors
+          offset={{ top: 72 }}
+          containerAriaLabel="通知"
+          toastOptions={{
+            className: 'journey-toast',
+            closeButtonAriaLabel: '关闭通知',
+          }}
+        />
         <Script id="greenmiles-appearance" strategy="beforeInteractive">
           {appearanceInitScript}
         </Script>

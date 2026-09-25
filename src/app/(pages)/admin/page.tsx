@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Leaf, Bike, Hotel, TreePine, ShoppingBag, Plus, Pencil, Trash2, LogOut } from 'lucide-react';
+import { AlertCircle, Bike, Hotel, Leaf, LogOut, Pencil, Plus, RefreshCw, ShoppingBag, Trash2, TreePine } from 'lucide-react';
 import { AdminOrdersTable } from '@/components/AdminOrdersTable';
 import type { Product } from '@/lib/types';
 
@@ -64,8 +64,32 @@ const FormSchema = z.object({
 
 type ProductForm = z.infer<typeof FormSchema>;
 
+function isProduct(value: unknown): value is Product {
+  if (!value || typeof value !== 'object') return false;
+  const product = value as Record<string, unknown>;
+
+  return Number.isSafeInteger(product.id)
+    && typeof product.name === 'string'
+    && typeof product.description === 'string'
+    && (product.category === 'virtual' || product.category === 'carbon' || product.category === 'physical')
+    && typeof product.mileage_cost === 'number'
+    && Number.isFinite(product.mileage_cost)
+    && Number.isSafeInteger(product.stock)
+    && typeof product.icon_type === 'string'
+    && typeof product.project_name === 'string'
+    && typeof product.project_standard === 'string'
+    && typeof product.project_vintage === 'string';
+}
+
+function parseProductList(payload: unknown): Product[] | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const data = (payload as { data?: unknown }).data;
+  return Array.isArray(data) && data.every(isProduct) ? data : null;
+}
+
 export default function AdminPage() {
-  const [session, setSession] = useState<'checking' | 'login' | 'ready'>('checking');
+  const [session, setSession] = useState<'checking' | 'login' | 'ready' | 'error'>('checking');
+  const [sessionError, setSessionError] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -74,6 +98,9 @@ export default function AdminPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const {
     register,
@@ -96,15 +123,31 @@ export default function AdminPage() {
     },
   });
 
-  const loadProducts = async () => {
-    const res = await fetch('/api/admin/products');
-    if (res.status === 401) {
-      setSession('login');
-      return;
+  const loadProducts = async ({ showChecking = false, preserveCurrent = false }: { showChecking?: boolean; preserveCurrent?: boolean } = {}) => {
+    if (showChecking) setSession('checking');
+    setSessionError('');
+
+    try {
+      const res = await fetch('/api/admin/products');
+      if (res.status === 401) {
+        setSession('login');
+        return;
+      }
+      if (!res.ok) throw new Error('商品加载失败');
+
+      const data = parseProductList(await res.json());
+      if (!data) throw new Error('商品响应格式异常');
+
+      setProducts(data);
+      setSession('ready');
+    } catch {
+      if (preserveCurrent) {
+        toast.error('商品列表刷新失败，请稍后重试');
+      } else {
+        setSessionError('管理数据暂时无法加载，请重试');
+        setSession('error');
+      }
     }
-    const data = await res.json();
-    setProducts(data.data || []);
-    setSession('ready');
   };
 
   useEffect(() => {
@@ -114,14 +157,25 @@ export default function AdminPage() {
           setSession('login');
           return null;
         }
+        if (!res.ok) throw new Error('商品加载失败');
         return res.json();
       })
-      .then((data) => {
-        if (!data) return;
-        setProducts(data.data || []);
+      .then((payload) => {
+        if (!payload) return;
+        const data = parseProductList(payload);
+        if (!data) throw new Error('商品响应格式异常');
+        setProducts(data);
         setSession('ready');
       })
-      .catch(() => setSession('login'));
+      .catch(() => {
+        setSessionError('管理数据暂时无法加载，请重试');
+        setSession('error');
+      });
+  }, []);
+
+  const handleAdminUnauthorized = useCallback(() => {
+    setProducts([]);
+    setSession('login');
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -141,7 +195,7 @@ export default function AdminPage() {
         return;
       }
       setPassword('');
-      await loadProducts();
+      await loadProducts({ showChecking: true });
     } catch {
       setLoginError('登录失败，请稍后重试');
     } finally {
@@ -201,13 +255,28 @@ export default function AdminPage() {
           body: JSON.stringify(values),
         }
       );
+      if (res.status === 401) {
+        setDialogOpen(false);
+        handleAdminUnauthorized();
+        return;
+      }
       if (!res.ok) {
         const data = await res.json();
         setFormError(data.error || '保存失败');
         return;
       }
+
+      const payload = await res.json();
+      if (!isProduct(payload?.data)) {
+        setFormError('保存响应格式异常，请刷新后确认结果');
+        return;
+      }
+
+      const savedProduct = payload.data;
+      setProducts((current) => editing
+        ? current.map((product) => product.id === savedProduct.id ? savedProduct : product)
+        : [...current, savedProduct].sort((a, b) => a.id - b.id));
       setDialogOpen(false);
-      await loadProducts();
     } catch {
       setFormError('保存失败，请稍后重试');
     } finally {
@@ -215,35 +284,49 @@ export default function AdminPage() {
     }
   };
 
-  const handleDelete = async (product: Product) => {
-    if (!window.confirm(`确认删除商品「${product.name}」？`)) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleting(true);
+    setDeleteError('');
     try {
-      const res = await fetch(`/api/admin/products/${product.id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.error || '删除失败');
+      const res = await fetch(`/api/admin/products/${target.id}`, { method: 'DELETE' });
+      if (res.status === 401) {
+        setDeleteTarget(null);
+        handleAdminUnauthorized();
         return;
       }
-      await loadProducts();
+      if (!res.ok) {
+        const data = await res.json();
+        setDeleteError(data.error || '删除失败');
+        return;
+      }
+      setProducts((current) => current.filter((product) => product.id !== target.id));
+      setDeleteTarget(null);
+      toast.success(`已删除「${target.name}」`);
     } catch {
-      toast.error('删除失败，请稍后重试');
+      setDeleteError('删除失败，请稍后重试');
+    } finally {
+      setDeleting(false);
     }
   };
 
   if (session !== 'ready') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <Card className="w-full max-w-sm border border-[#E2E8F0]">
+      <div className="journey-page flex min-h-[calc(100svh-4rem)] items-center justify-center px-4 py-8">
+        <Card className="journey-surface-heavy w-full max-w-sm border">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent">
-              <Leaf className="h-6 w-6 text-white" />
+              <Leaf className="h-6 w-6 text-white" aria-hidden="true" />
             </div>
-            <CardTitle className="text-primary">GreenMiles 管理后台</CardTitle>
+            <CardTitle className="text-primary">
+              <h1>GreenMiles 管理后台</h1>
+            </CardTitle>
             <CardDescription>请输入管理员密码以管理绿色商品</CardDescription>
           </CardHeader>
           <CardContent>
             {session === 'login' ? (
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4" aria-busy={loggingIn}>
                 <div>
                   <label htmlFor="admin-password" className="text-xs text-muted-foreground mb-1 block">
                     管理员密码
@@ -254,8 +337,12 @@ export default function AdminPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="ADMIN_PASSWORD"
+                    autoComplete="current-password"
+                    required
+                    aria-invalid={Boolean(loginError)}
+                    aria-describedby={loginError ? 'admin-login-error' : undefined}
                   />
-                  {loginError && <p className="text-xs text-destructive mt-1">{loginError}</p>}
+                  {loginError && <p id="admin-login-error" className="text-xs text-destructive mt-1" role="alert">{loginError}</p>}
                 </div>
                 <Button className="w-full" type="submit" disabled={loggingIn}>
                   {loggingIn ? '登录中...' : '进入管理后台'}
@@ -264,8 +351,19 @@ export default function AdminPage() {
                   在 .env.local 中配置 ADMIN_PASSWORD 后可用
                 </p>
               </form>
+            ) : session === 'error' ? (
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
+                <p className="text-sm text-destructive" role="alert">{sessionError}</p>
+                <Button variant="outline" onClick={() => void loadProducts({ showChecking: true })}>
+                  <RefreshCw aria-hidden="true" />
+                  重试加载
+                </Button>
+              </div>
             ) : (
-              <p className="text-center text-sm text-muted-foreground py-4">正在检查管理员会话...</p>
+              <p className="text-center text-sm text-muted-foreground py-4" role="status" aria-live="polite">
+                正在检查管理员会话...
+              </p>
             )}
           </CardContent>
         </Card>
@@ -274,14 +372,14 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="journey-page min-h-[calc(100svh-4rem)]">
       <div className="mx-auto max-w-[1280px] px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-primary">管理后台</h1>
+            <h1 className="text-2xl font-bold text-primary sm:text-3xl">管理后台</h1>
             <Badge>Admin</Badge>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               退出管理
@@ -294,13 +392,19 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="products">
-          <TabsList>
+          <TabsList className="grid h-auto w-full grid-cols-2 sm:w-fit">
             <TabsTrigger value="products">商品管理</TabsTrigger>
             <TabsTrigger value="orders">订单管理</TabsTrigger>
           </TabsList>
           <TabsContent value="products">
-            <Card className="border border-[#E2E8F0]">
-              <Table>
+            {products.length === 0 ? (
+              <Card className="journey-data-panel items-center border px-4 py-8 text-center">
+                <p className="text-muted-foreground">暂无商品</p>
+                <p className="text-xs text-muted-foreground">使用“新增商品”创建第一件绿色商品。</p>
+              </Card>
+            ) : (
+              <Card className="journey-data-panel border">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">图标</TableHead>
@@ -335,7 +439,15 @@ export default function AdminPage() {
                           <Button variant="ghost" size="icon-sm" aria-label={`编辑 ${product.name}`} onClick={() => openEdit(product)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon-sm" aria-label={`删除 ${product.name}`} onClick={() => handleDelete(product)}>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`删除 ${product.name}`}
+                            onClick={() => {
+                              setDeleteError('');
+                              setDeleteTarget(product);
+                            }}
+                          >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </TableCell>
@@ -343,31 +455,37 @@ export default function AdminPage() {
                     );
                   })}
                 </TableBody>
-              </Table>
-            </Card>
+                </Table>
+              </Card>
+            )}
           </TabsContent>
           <TabsContent value="orders">
-            <AdminOrdersTable />
+            <AdminOrdersTable onUnauthorized={handleAdminUnauthorized} />
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="journey-portal-surface max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? '编辑商品' : '新增商品'}</DialogTitle>
             <DialogDescription>
               {editing ? `修改「${editing.name}」的信息` : '录入新的绿色商品或服务'}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" aria-busy={saving}>
             <div>
               <label htmlFor="product-name" className="text-xs text-muted-foreground mb-1 block">
                 商品名称 <span className="text-destructive">*</span>
               </label>
-              <Input id="product-name" {...register('name')} />
-              {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
+              <Input
+                id="product-name"
+                aria-invalid={Boolean(errors.name)}
+                aria-describedby={errors.name ? 'product-name-error' : undefined}
+                {...register('name')}
+              />
+              {errors.name && <p id="product-name-error" className="text-xs text-destructive mt-1" role="alert">{errors.name.message}</p>}
             </div>
             <div>
               <label htmlFor="product-description" className="text-xs text-muted-foreground mb-1 block">
@@ -377,7 +495,7 @@ export default function AdminPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">
+                <label htmlFor="product-category" className="text-xs text-muted-foreground mb-1 block">
                   类别 <span className="text-destructive">*</span>
                 </label>
                 <Controller
@@ -385,10 +503,18 @@ export default function AdminPage() {
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger
+                        id="product-category"
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        className="w-full"
+                        aria-invalid={Boolean(errors.category)}
+                        aria-describedby={errors.category ? 'product-category-error' : undefined}
+                      >
                         <SelectValue placeholder="选择类别" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent surface="journey">
                         <SelectItem value="virtual">虚拟卡券</SelectItem>
                         <SelectItem value="carbon">碳抵消</SelectItem>
                         <SelectItem value="physical">实体商品</SelectItem>
@@ -396,10 +522,10 @@ export default function AdminPage() {
                     </Select>
                   )}
                 />
-                {errors.category && <p className="text-xs text-destructive mt-1">{errors.category.message}</p>}
+                {errors.category && <p id="product-category-error" className="text-xs text-destructive mt-1" role="alert">{errors.category.message}</p>}
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">
+                <label htmlFor="product-icon" className="text-xs text-muted-foreground mb-1 block">
                   图标
                 </label>
                 <Controller
@@ -407,10 +533,10 @@ export default function AdminPage() {
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger id="product-icon" className="w-full">
                         <SelectValue placeholder="选择图标" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent surface="journey">
                         <SelectItem value="bike">骑行卡</SelectItem>
                         <SelectItem value="hotel">酒店券</SelectItem>
                         <SelectItem value="tree">植树</SelectItem>
@@ -426,15 +552,27 @@ export default function AdminPage() {
                 <label htmlFor="product-cost" className="text-xs text-muted-foreground mb-1 block">
                   所需里程 <span className="text-destructive">*</span>
                 </label>
-                <Input id="product-cost" type="number" {...register('mileage_cost')} />
-                {errors.mileage_cost && <p className="text-xs text-destructive mt-1">{errors.mileage_cost.message}</p>}
+                <Input
+                  id="product-cost"
+                  type="number"
+                  aria-invalid={Boolean(errors.mileage_cost)}
+                  aria-describedby={errors.mileage_cost ? 'product-cost-error' : undefined}
+                  {...register('mileage_cost')}
+                />
+                {errors.mileage_cost && <p id="product-cost-error" className="text-xs text-destructive mt-1" role="alert">{errors.mileage_cost.message}</p>}
               </div>
               <div>
                 <label htmlFor="product-stock" className="text-xs text-muted-foreground mb-1 block">
                   库存 <span className="text-destructive">*</span>
                 </label>
-                <Input id="product-stock" type="number" {...register('stock')} />
-                {errors.stock && <p className="text-xs text-destructive mt-1">{errors.stock.message}</p>}
+                <Input
+                  id="product-stock"
+                  type="number"
+                  aria-invalid={Boolean(errors.stock)}
+                  aria-describedby={errors.stock ? 'product-stock-error' : undefined}
+                  {...register('stock')}
+                />
+                {errors.stock && <p id="product-stock-error" className="text-xs text-destructive mt-1" role="alert">{errors.stock.message}</p>}
               </div>
             </div>
             <div>
@@ -461,7 +599,7 @@ export default function AdminPage() {
                 />
               </div>
             </div>
-            {formError && <p className="text-xs text-destructive">{formError}</p>}
+            {formError && <p className="text-xs text-destructive" role="alert">{formError}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 取消
@@ -471,6 +609,28 @@ export default function AdminPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => {
+        if (!open && !deleting) setDeleteTarget(null);
+      }}>
+        <DialogContent className="journey-portal-surface sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除商品</DialogTitle>
+            <DialogDescription>
+              {deleteTarget ? `确认删除「${deleteTarget.name}」？已有订单的商品仍会由服务端拒绝删除。` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && <p className="text-sm text-destructive" role="alert">{deleteError}</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              取消
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void handleDelete()}>
+              {deleting ? '删除中...' : '确认删除'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -26,6 +26,11 @@ The core experience journey: **Reveal** (see the emission) → **Offset** (take 
 
 The home page leads with a member miles card and available green products. Guests can browse featured items before signing in; members see their actual balance and personal activity. Every page shares the same light, green-tinted design system and a saved appearance toggle for switching between glass and standard surfaces, including authentication and the admin console.
 
+## Phase 4–5 update
+
+- **Phase 4 — Personal impact:** `/impact` builds all-time aggregates and milestones from in-app records, plus a privacy-safe share preview and downloadable PNG. Cancelling an eligible pending order also removes its refunded redemption from net impact without recalculating history from today's product data.
+- **Phase 5 — Authentication, admin, and site-wide finish:** the saved glass / standard preference now covers authentication and the admin console. Their form and data states, shared dialogs and notifications, narrow layouts, reduced-transparency fallback, and reduced-motion fallback now follow the same interaction system.
+
 ## Screenshots
 
 **Guest home — discover products before signing in:**
@@ -36,7 +41,7 @@ The home page leads with a member miles card and available green products. Guest
 
 ![Member home](docs/screenshots/dashboard.png)
 
-**Authentication — responsive, accessible login and registration forms:**
+**Phase 5 · Authentication — unified login and registration surfaces:**
 
 ![Login](docs/screenshots/login.png)
 
@@ -54,7 +59,7 @@ The home page leads with a member miles card and available green products. Guest
 
 ![Footprint](docs/screenshots/footprint.png)
 
-**Personal impact — a shareable summary of the member's greener choices:**
+**Phase 4 · Personal impact — all-time totals and earned milestones:**
 
 ![Personal impact](docs/screenshots/impact.png)
 
@@ -64,7 +69,7 @@ The home page leads with a member miles card and available green products. Guest
 
 ![Orders balance tab](docs/screenshots/orders-balance.png)
 
-**Admin console** (`/admin`, gated by `ADMIN_PASSWORD`) — product CRUD and order fulfilment:
+**Phase 5 · Admin console** (`/admin`, with its password configured through `ADMIN_PASSWORD`) — product CRUD and order fulfilment:
 
 ![Admin console](docs/screenshots/admin.png)
 

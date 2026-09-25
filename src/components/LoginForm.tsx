@@ -55,12 +55,13 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4" aria-busy={isLoading}>
       <FormField
         id="email"
         label="邮箱"
         type="email"
         placeholder="your@email.com"
+        autoComplete="email"
         error={errors.email?.message}
         registration={register('email')}
       />
@@ -70,6 +71,7 @@ export function LoginForm() {
         label="密码"
         type="password"
         placeholder="至少 6 位"
+        autoComplete="current-password"
         error={errors.password?.message}
         registration={register('password')}
       />

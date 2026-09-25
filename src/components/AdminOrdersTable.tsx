@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Truck, PackageCheck } from 'lucide-react';
+import { AlertCircle, PackageCheck, RefreshCw, Truck } from 'lucide-react';
 
 export interface AdminOrder {
   id: number;
@@ -43,24 +43,94 @@ const NEXT_ACTION: Record<string, { to: string; label: string }> = {
   shipped: { to: 'completed', label: '标记完成' },
 };
 
-export function AdminOrdersTable() {
+interface AdminOrdersTableProps {
+  onUnauthorized: () => void;
+}
+
+type LoadState = 'loading' | 'success' | 'error';
+
+function isAdminOrder(value: unknown): value is AdminOrder {
+  if (!value || typeof value !== 'object') return false;
+  const order = value as Record<string, unknown>;
+
+  return Number.isSafeInteger(order.id)
+    && Number.isSafeInteger(order.user_id)
+    && typeof order.email === 'string'
+    && typeof order.product_name === 'string'
+    && typeof order.category === 'string'
+    && (typeof order.icon_type === 'string' || order.icon_type === null)
+    && typeof order.status === 'string'
+    && Number.isSafeInteger(order.quantity)
+    && typeof order.mileage_cost === 'number'
+    && Number.isFinite(order.mileage_cost)
+    && (typeof order.voucher_code === 'string' || order.voucher_code === null)
+    && (typeof order.address === 'string' || order.address === null)
+    && typeof order.created_at === 'string'
+    && Number.isFinite(Date.parse(order.created_at));
+}
+
+function parseOrderList(payload: unknown): AdminOrder[] | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const data = (payload as { data?: unknown }).data;
+  return Array.isArray(data) && data.every(isAdminOrder) ? data : null;
+}
+
+export function AdminOrdersTable({ onUnauthorized }: AdminOrdersTableProps) {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  const loadOrders = async () => {
-    const res = await fetch('/api/admin/orders');
-    const data = await res.json();
-    setOrders(data.data || []);
+  const loadOrders = async ({ preserveCurrent = false }: { preserveCurrent?: boolean } = {}) => {
+    if (!preserveCurrent) setLoadState('loading');
+    setLoadError('');
+
+    try {
+      const res = await fetch('/api/admin/orders');
+      if (res.status === 401) {
+        onUnauthorized();
+        return;
+      }
+      if (!res.ok) throw new Error('订单加载失败');
+
+      const data = parseOrderList(await res.json());
+      if (!data) throw new Error('订单响应格式异常');
+
+      setOrders(data);
+      setLoadState('success');
+    } catch {
+      const message = '订单暂时无法加载，请重试';
+      if (preserveCurrent) {
+        setLoadError(message);
+      } else {
+        setLoadState('error');
+        setLoadError(message);
+      }
+    }
   };
 
   useEffect(() => {
     fetch('/api/admin/orders')
-      .then((res) => res.json())
-      .then((data) => setOrders(data.data || []))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false));
-  }, []);
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized();
+          return null;
+        }
+        if (!res.ok) throw new Error('订单加载失败');
+        return res.json();
+      })
+      .then((payload) => {
+        if (!payload) return;
+        const data = parseOrderList(payload);
+        if (!data) throw new Error('订单响应格式异常');
+        setOrders(data);
+        setLoadState('success');
+      })
+      .catch(() => {
+        setLoadError('订单暂时无法加载，请重试');
+        setLoadState('error');
+      });
+  }, [onUnauthorized]);
 
   const handleTransition = async (order: AdminOrder, to: string) => {
     setBusyId(order.id);
@@ -70,13 +140,18 @@ export function AdminOrdersTable() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: to }),
       });
+      if (res.status === 401) {
+        onUnauthorized();
+        return;
+      }
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error || '操作失败');
         return;
       }
+      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: to } : item));
       toast.success(`订单 #${order.id} 已更新`);
-      await loadOrders();
+      await loadOrders({ preserveCurrent: true });
     } catch {
       toast.error('操作失败，请稍后重试');
     } finally {
@@ -84,17 +159,49 @@ export function AdminOrdersTable() {
     }
   };
 
-  if (loading) {
-    return <p className="text-center py-8 text-muted-foreground">加载中...</p>;
+  if (loadState === 'loading') {
+    return (
+      <Card className="journey-data-panel border py-8 text-center" role="status" aria-live="polite">
+        <p className="text-muted-foreground">正在加载订单...</p>
+      </Card>
+    );
+  }
+
+  if (loadState === 'error') {
+    return (
+      <Card className="journey-data-panel items-center border px-4 py-8 text-center">
+        <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
+        <p className="text-sm text-destructive" role="alert">{loadError}</p>
+        <Button variant="outline" onClick={() => void loadOrders()}>
+          <RefreshCw aria-hidden="true" />
+          重试订单加载
+        </Button>
+      </Card>
+    );
   }
 
   if (orders.length === 0) {
-    return <p className="text-center py-8 text-muted-foreground">暂无订单</p>;
+    return (
+      <Card className="journey-data-panel border px-4 py-8 text-center">
+        <p className="text-muted-foreground">暂无订单</p>
+        <p className="text-xs text-muted-foreground">会员产生实体商品订单后会显示在这里。</p>
+      </Card>
+    );
   }
 
   return (
-    <Card className="border border-[#E2E8F0]">
-      <Table>
+    <>
+      {loadError && (
+        <div className="journey-surface-light mb-3 flex flex-wrap items-center justify-between gap-2 border px-4 py-3" role="alert">
+          <p className="text-sm text-destructive">{loadError}</p>
+          <Button variant="outline" size="sm" onClick={() => void loadOrders({ preserveCurrent: true })}>
+            <RefreshCw aria-hidden="true" />
+            重试刷新
+          </Button>
+        </div>
+      )}
+      <Card className="journey-data-panel border">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>订单号</TableHead>
@@ -151,7 +258,8 @@ export function AdminOrdersTable() {
             );
           })}
         </TableBody>
-      </Table>
-    </Card>
+        </Table>
+      </Card>
+    </>
   );
 }

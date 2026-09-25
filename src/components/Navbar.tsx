@@ -9,9 +9,8 @@ import { MilesBalance } from '@/components/MilesBalance';
 import { CartDialog } from '@/components/CartDialog';
 import { GlassModeToggle } from '@/components/GlassModeToggle';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Leaf, Search, ShoppingCart, LogOut, Menu, RefreshCw, X } from 'lucide-react';
+import { Leaf, ShoppingCart, LogOut, Menu, RefreshCw, X } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: '首页' },
@@ -31,12 +30,6 @@ export function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const count = itemCount();
   const isHome = pathname === '/';
-  const hasGlassAppearance = isHome
-    || pathname === '/mall'
-    || pathname === '/calculator'
-    || pathname === '/orders'
-    || pathname === '/footprint'
-    || pathname === '/impact';
   const isInitializing = initializationStatus === 'idle' || initializationStatus === 'loading';
 
   useEffect(() => {
@@ -70,9 +63,7 @@ export function Navbar() {
       <nav
         className={cn(
           'sticky top-0 z-50 w-full border-b',
-          hasGlassAppearance
-            ? isHome ? 'home-nav border-white/50' : 'journey-nav border-white/50'
-            : 'border-[#E2E8F0] bg-background/80 backdrop-blur-md'
+          isHome ? 'home-nav border-white/50' : 'journey-nav border-white/50'
         )}
       >
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-2 px-3 sm:px-4">
@@ -80,12 +71,12 @@ export function Navbar() {
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <Leaf className="h-5 w-5 text-white" aria-hidden="true" />
             </span>
-            <span className={cn('text-lg font-bold text-primary', hasGlassAppearance && 'hidden min-[390px]:inline')}>
+            <span className="hidden text-lg font-bold text-primary min-[390px]:inline">
               GreenMiles
             </span>
           </Link>
 
-          <div className={cn('items-center gap-4 xl:gap-6', hasGlassAppearance ? 'hidden lg:flex' : 'flex')}>
+          <div className="hidden items-center gap-4 lg:flex xl:gap-6">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -105,14 +96,7 @@ export function Navbar() {
           </div>
 
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
-            {!hasGlassAppearance && (
-              <div className="relative">
-                <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
-                <Input disabled placeholder="Coming Soon" className="h-9 w-40 pl-8" />
-              </div>
-            )}
-
-            {hasGlassAppearance && <GlassModeToggle compact />}
+            <GlassModeToggle compact />
 
             {(isAuthenticated || (isHome && count > 0)) && (
               <Button
@@ -139,11 +123,11 @@ export function Navbar() {
               </Button>
             ) : isAuthenticated ? (
               <>
-                <MilesBalance compact={hasGlassAppearance} />
+                <MilesBalance compact />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn(hasGlassAppearance && 'hidden lg:inline-flex')}
+                  className="hidden lg:inline-flex"
                   aria-label="退出登录"
                   title="退出登录"
                   onClick={handleLogout}
@@ -152,7 +136,7 @@ export function Navbar() {
                 </Button>
               </>
             ) : (
-              <div className={cn('flex items-center gap-1', hasGlassAppearance && 'hidden md:flex')}>
+              <div className="hidden items-center gap-1 md:flex">
                 <Link href="/login" className={cn(buttonVariants({ variant: 'ghost' }))}>
                   登录
                 </Link>
@@ -162,25 +146,23 @@ export function Navbar() {
               </div>
             )}
 
-            {hasGlassAppearance && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                aria-label={menuOpen ? '关闭导航菜单' : '打开导航菜单'}
-                aria-expanded={menuOpen}
-                aria-controls="appearance-mobile-menu"
-                ref={menuButtonRef}
-                onClick={() => setMenuOpen((open) => !open)}
-              >
-                {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              aria-label={menuOpen ? '关闭导航菜单' : '打开导航菜单'}
+              aria-expanded={menuOpen}
+              aria-controls="appearance-mobile-menu"
+              ref={menuButtonRef}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+            </Button>
           </div>
         </div>
 
-        {hasGlassAppearance && menuOpen && (
+        {menuOpen && (
           <div
             id="appearance-mobile-menu"
             className={cn(
@@ -233,7 +215,7 @@ export function Navbar() {
       <CartDialog
         open={cartOpen}
         onOpenChange={setCartOpen}
-        variant={isHome ? 'home' : hasGlassAppearance ? 'journey' : 'default'}
+        variant={isHome ? 'home' : 'journey'}
       />
     </>
   );

@@ -43,6 +43,10 @@ async function main() {
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(OUT_DIR, 'login.png') });
 
+  await page.goto(`${BASE}/register`, { waitUntil: 'load' });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(OUT_DIR, 'register.png') });
+
   // Demo member session (register is idempotent: 409 when the user exists)
   const email = 'demo@greenmiles.com';
   const password = 'demo123456';
@@ -97,6 +101,11 @@ async function main() {
   await page.goto(`${BASE}/footprint`, { waitUntil: 'load' });
   await page.waitForTimeout(1200); // let the recharts bars animate in
   await page.screenshot({ path: path.join(OUT_DIR, 'footprint.png') });
+
+  // Personal impact summary
+  await page.goto(`${BASE}/impact`, { waitUntil: 'load' });
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: path.join(OUT_DIR, 'impact.png') });
 
   // Orders with vouchers
   await page.goto(`${BASE}/orders`, { waitUntil: 'load' });

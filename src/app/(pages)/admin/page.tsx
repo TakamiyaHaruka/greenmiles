@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle, Bike, Hotel, Leaf, LogOut, Pencil, Plus, RefreshCw, ShoppingBag, Trash2, TreePine } from 'lucide-react';
 import { AdminOrdersTable } from '@/components/AdminOrdersTable';
 import type { Product } from '@/lib/types';
+import { publishProductCatalogChanged } from '@/lib/productCatalogSync';
 
 const CATEGORY_LABELS: Record<string, string> = {
   virtual: '虚拟卡券',
@@ -276,6 +277,7 @@ export default function AdminPage() {
       setProducts((current) => editing
         ? current.map((product) => product.id === savedProduct.id ? savedProduct : product)
         : [...current, savedProduct].sort((a, b) => a.id - b.id));
+      publishProductCatalogChanged();
       setDialogOpen(false);
     } catch {
       setFormError('保存失败，请稍后重试');
@@ -302,6 +304,7 @@ export default function AdminPage() {
         return;
       }
       setProducts((current) => current.filter((product) => product.id !== target.id));
+      publishProductCatalogChanged();
       setDeleteTarget(null);
       toast.success(`已删除「${target.name}」`);
     } catch {

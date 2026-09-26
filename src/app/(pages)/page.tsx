@@ -21,6 +21,7 @@ import { ProductDetailSheet } from '@/components/ProductDetailSheet';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/lib/types';
+import { useProductCatalog } from '@/hooks/useProductCatalog';
 
 type LoadState = 'loading' | 'success' | 'error';
 
@@ -35,13 +36,6 @@ interface PlatformStats {
   orderCount: number;
   greenMilesSpent: number;
   totalCo2OffsetKg: number;
-}
-
-async function fetchProducts(): Promise<Product[]> {
-  const response = await fetch('/api/products');
-  if (!response.ok) throw new Error('products request failed');
-  const payload = await response.json();
-  return Array.isArray(payload.data) ? payload.data : [];
 }
 
 class SessionExpiredError extends Error {}
@@ -108,37 +102,31 @@ function SurfaceSkeleton({ className }: { className?: string }) {
 export default function HomePage() {
   const { user, isAuthenticated, initializationStatus, clearUser, fetchUser } = useUserStore();
   const clearCart = useCartStore((state) => state.clearCart);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productsState, setProductsState] = useState<LoadState>('loading');
+  const [productSelection, setProductSelection] = useState<{ productId: number | null; open: boolean }>({
+    productId: null,
+    open: false,
+  });
+  const handleProductsLoaded = useCallback((nextProducts: Product[]) => {
+    setProductSelection((current) => (
+      current.productId !== null && !nextProducts.some((product) => product.id === current.productId)
+        ? { productId: null, open: false }
+        : current
+    ));
+  }, []);
+  const { products, loading: productsLoading, loadError: productsLoadError, retry: retryProducts } = useProductCatalog({
+    onProductsLoaded: handleProductsLoaded,
+  });
   const [personalImpact, setPersonalImpact] = useState<PersonalImpact | null>(null);
   const [personalState, setPersonalState] = useState<LoadState>('loading');
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const [platformState, setPlatformState] = useState<LoadState>('loading');
   const [personalMemberId, setPersonalMemberId] = useState<number | null>(null);
   const [platformMemberId, setPlatformMemberId] = useState<number | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const memberRequestId = useRef(0);
 
   const isInitializing = initializationStatus === 'idle' || initializationStatus === 'loading';
   const authenticationFailed = initializationStatus === 'error';
   const activeMemberId = user?.id;
-
-  useEffect(() => {
-    let active = true;
-    void fetchProducts()
-      .then((data) => {
-        if (!active) return;
-        setProducts(data);
-        setProductsState('success');
-      })
-      .catch(() => {
-        if (!active) return;
-        setProducts([]);
-        setProductsState('error');
-      });
-    return () => { active = false; };
-  }, []);
 
   const startMemberDataRequest = useCallback((memberId: number) => {
     const requestId = ++memberRequestId.current;
@@ -190,17 +178,6 @@ export default function HomePage() {
     return () => { memberRequestId.current += 1; };
   }, [activeMemberId, initializationStatus, startMemberDataRequest]);
 
-  const retryProducts = async () => {
-    setProductsState('loading');
-    try {
-      setProducts(await fetchProducts());
-      setProductsState('success');
-    } catch {
-      setProducts([]);
-      setProductsState('error');
-    }
-  };
-
   const retryMemberData = () => {
     if (!user || initializationStatus !== 'authenticated') return;
     setPersonalMemberId(null);
@@ -224,9 +201,19 @@ export default function HomePage() {
       .slice(0, 4);
   }, [initializationStatus, products, user?.miles_balance]);
 
+  const selectedProduct = productSelection.productId == null
+    ? null
+    : products.find((product) => product.id === productSelection.productId) ?? null;
+
   const openProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setSheetOpen(true);
+    setProductSelection({ productId: product.id, open: true });
+  };
+
+  const handleSheetOpenChange = (open: boolean) => {
+    setProductSelection((current) => ({
+      productId: open ? current.productId : null,
+      open,
+    }));
   };
 
   return (
@@ -320,11 +307,11 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {productsState === 'loading' ? (
+          {productsLoading ? (
             <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" aria-label="商品加载中">
               {[0, 1, 2, 3].map((item) => <SurfaceSkeleton key={item} className="h-72" />)}
             </div>
-          ) : productsState === 'error' ? (
+          ) : productsLoadError ? (
             <div className="home-surface-heavy mt-8 flex min-h-48 flex-col items-center justify-center border p-6 text-center">
               <p className="font-medium text-primary">商品暂时没有加载成功</p>
               <p className="mt-1 text-sm text-muted-foreground">请检查连接后重试，页面不会用示例商品代替真实库存。</p>
@@ -482,8 +469,8 @@ export default function HomePage() {
 
       <ProductDetailSheet
         product={selectedProduct}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        open={productSelection.open && selectedProduct !== null}
+        onOpenChange={handleSheetOpenChange}
         balance={initializationStatus === 'authenticated' ? user?.miles_balance : null}
         variant="home"
       />

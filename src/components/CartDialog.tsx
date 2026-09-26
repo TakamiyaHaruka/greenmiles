@@ -24,6 +24,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { publishProductCatalogChanged } from '@/lib/productCatalogSync';
 
 interface CartDialogProps {
   open: boolean;
@@ -76,10 +77,15 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || '兑换失败');
+        const errorMessage = typeof data?.error === 'string' ? data.error : '兑换失败';
+        if (errorMessage === '商品库存不足' || errorMessage === '商品不存在') {
+          publishProductCatalogChanged();
+        }
+        toast.error(errorMessage);
         return;
       }
 
+      publishProductCatalogChanged();
       // Update user balance
       updateMilesBalance(data.data.new_balance);
       // Remove from cart

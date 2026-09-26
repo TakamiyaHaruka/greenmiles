@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ContextBanner } from '@/components/ContextBanner';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailSheet } from '@/components/ProductDetailSheet';
@@ -15,6 +15,7 @@ import {
 import { Package } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { useUserStore } from '@/stores/userStore';
+import { useProductCatalog } from '@/hooks/useProductCatalog';
 
 const CATEGORIES = [
   { value: 'all', label: 'All' },
@@ -24,40 +25,24 @@ const CATEGORIES = [
 ];
 
 export default function MallPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [productSelection, setProductSelection] = useState<{ productId: number | null; open: boolean }>({
+    productId: null,
+    open: false,
+  });
+  const handleProductsLoaded = useCallback((nextProducts: Product[]) => {
+    setProductSelection((current) => (
+      current.productId !== null && !nextProducts.some((product) => product.id === current.productId)
+        ? { productId: null, open: false }
+        : current
+    ));
+  }, []);
+  const { products, loading, loadError, retry } = useProductCatalog({ onProductsLoaded: handleProductsLoaded });
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('low-to-high');
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
   const balance = useUserStore((state) => state.user?.miles_balance ?? null);
-
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
-    fetch('/api/products', { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error('商品加载失败');
-        return res.json();
-      })
-      .then((data: { data?: unknown }) => {
-        if (!Array.isArray(data?.data)) throw new Error('商品响应无效');
-        if (active) setProducts(data.data as Product[]);
-      })
-      .catch(() => { if (active) setLoadError(true); })
-      .finally(() => {
-        window.clearTimeout(timeoutId);
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [reloadKey]);
+  const selectedProduct = productSelection.productId == null
+    ? null
+    : products.find((product) => product.id === productSelection.productId) ?? null;
 
   const filtered = useMemo(() => {
     let list = category === 'all'
@@ -74,8 +59,14 @@ export default function MallPage() {
   }, [products, category, sort]);
 
   const handleProductClick = (product: Product) => {
-    setSelectedProduct(product);
-    setSheetOpen(true);
+    setProductSelection({ productId: product.id, open: true });
+  };
+
+  const handleSheetOpenChange = (open: boolean) => {
+    setProductSelection((current) => ({
+      productId: open ? current.productId : null,
+      open,
+    }));
   };
 
   return (
@@ -121,7 +112,7 @@ export default function MallPage() {
         ) : loadError ? (
           <div className="journey-surface-light border py-16 text-center" role="alert">
             <p className="text-muted-foreground">商品暂时无法加载</p>
-            <button type="button" className="mt-3 text-sm font-medium text-primary underline underline-offset-4" onClick={() => { setLoading(true); setLoadError(false); setReloadKey((key) => key + 1); }}>
+            <button type="button" className="mt-3 text-sm font-medium text-primary underline underline-offset-4" onClick={retry}>
               重试
             </button>
           </div>
@@ -154,8 +145,8 @@ export default function MallPage() {
         product={selectedProduct}
         balance={balance}
         variant="journey"
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        open={productSelection.open && selectedProduct !== null}
+        onOpenChange={handleSheetOpenChange}
       />
     </div>
   );

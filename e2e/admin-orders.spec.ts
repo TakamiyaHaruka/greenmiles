@@ -2,6 +2,67 @@ import { test, expect } from '@playwright/test';
 import { createAndLoginUser, adminLoginViaApi } from './helpers';
 
 test.describe('journey 6 — admin order fulfilment pipeline', () => {
+  test('product changes refresh an open mall tab and synchronize its detail sheet', async ({ page, context }) => {
+    await createAndLoginUser(page);
+    await adminLoginViaApi(page);
+    const mallPage = await context.newPage();
+    const homePage = await context.newPage();
+    await mallPage.goto('/mall');
+    await expect(mallPage.getByRole('heading', { name: '绿色商城' })).toBeVisible();
+    await homePage.goto('/');
+    await expect(homePage.getByRole('heading', { name: '精选绿色好物' })).toBeVisible();
+
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', { name: '管理后台', exact: true })).toBeVisible();
+
+    const uniqueName = `跨标签目录-${Date.now()}`;
+    const updatedName = `${uniqueName}-已更新`;
+    await page.getByRole('button', { name: '新增商品' }).click();
+    const createDialog = page.getByRole('dialog');
+    await createDialog.getByLabel(/商品名称/).fill(uniqueName);
+    await createDialog.getByLabel(/商品描述/).fill('跨标签刷新前');
+    await createDialog.getByLabel(/类别/).click();
+    await page.getByRole('option', { name: '虚拟卡券' }).click();
+    await createDialog.getByLabel(/所需里程/).fill('1');
+    await createDialog.getByLabel(/库存/).fill('7');
+    await createDialog.getByRole('button', { name: '保存' }).click();
+
+    const mallProduct = mallPage.getByRole('button', { name: new RegExp(uniqueName) });
+    const homeProduct = homePage.getByRole('button', { name: new RegExp(uniqueName) });
+    await expect(mallProduct).toBeVisible();
+    await expect(homeProduct).toBeVisible();
+    await mallProduct.click();
+    await homeProduct.click();
+    await expect(mallPage.getByRole('dialog').getByText('库存: 7')).toBeVisible();
+    await expect(homePage.getByRole('dialog').getByText('库存: 7')).toBeVisible();
+
+    const createdRow = page.getByRole('row').filter({ hasText: uniqueName });
+    await createdRow.getByRole('button', { name: `编辑 ${uniqueName}` }).click();
+    const editDialog = page.getByRole('dialog');
+    await editDialog.getByLabel(/商品名称/).fill(updatedName);
+    await editDialog.getByLabel(/商品描述/).fill('跨标签刷新后');
+    await editDialog.getByLabel(/库存/).fill('3');
+    await editDialog.getByRole('button', { name: '保存' }).click();
+
+    const mallDialog = mallPage.getByRole('dialog');
+    const homeDialog = homePage.getByRole('dialog');
+    await expect(mallDialog.getByRole('heading', { name: updatedName })).toBeVisible();
+    await expect(homeDialog.getByRole('heading', { name: updatedName })).toBeVisible();
+    await expect(mallDialog.getByText('跨标签刷新后')).toBeVisible();
+    await expect(homeDialog.getByText('跨标签刷新后')).toBeVisible();
+    await expect(mallDialog.getByText('库存: 3')).toBeVisible();
+    await expect(homeDialog.getByText('库存: 3')).toBeVisible();
+
+    const updatedRow = page.getByRole('row').filter({ hasText: updatedName });
+    await updatedRow.getByRole('button', { name: `删除 ${updatedName}` }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '确认删除' }).click();
+
+    await expect(mallPage.getByRole('dialog')).toHaveCount(0);
+    await expect(homePage.getByRole('dialog')).toHaveCount(0);
+    await expect(mallPage.getByText(updatedName)).toHaveCount(0);
+    await expect(homePage.getByText(updatedName)).toHaveCount(0);
+  });
+
   test('ship and complete a member order; illegal transitions are rejected', async ({ page }) => {
     // A member places a physical order (pending) via API
     const email = await createAndLoginUser(page);

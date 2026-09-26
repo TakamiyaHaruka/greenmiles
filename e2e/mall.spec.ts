@@ -101,6 +101,97 @@ test.describe('journey 3+4 — redeem with miles and see the order', () => {
     await expect(page.getByText('帆布袋 × 2')).toBeVisible();
   });
 
+  test('cart caps quantity at stock and supports accessible decrement controls at 320px', async ({ page }) => {
+    await createAndLoginUser(page);
+    await page.setViewportSize({ width: 320, height: 812 });
+    await page.route('**/api/products', async (route) => {
+      const response = await route.fetch();
+      const body = await response.json() as { data: Array<Record<string, unknown>> };
+      await route.fulfill({
+        response,
+        json: {
+          ...body,
+          data: body.data.map((product) =>
+            product.id === 1 ? { ...product, stock: 2 } : product
+          ),
+        },
+      });
+    });
+
+    await page.goto('/mall');
+    const product = page.getByRole('button', { name: /共享单车骑行卡.*查看详情/ });
+
+    await product.click();
+    await page.getByRole('button', { name: '加入购物车' }).click();
+    await product.click();
+    await page.getByRole('button', { name: '加入购物车' }).click();
+    await expect(page.locator('nav').getByText('2', { exact: true })).toBeVisible();
+
+    await product.click();
+    await expect(page.getByRole('button', { name: '已达库存上限' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    await openCart(page);
+    const cart = page.getByRole('dialog');
+    const decrease = cart.getByRole('button', { name: '减少 共享单车骑行卡 数量' });
+    const increase = cart.getByRole('button', { name: '增加 共享单车骑行卡 数量' });
+
+    await expect(cart.getByRole('status', { name: '共享单车骑行卡 当前数量 2' })).toHaveText('2');
+    await expect(cart.getByText('已达库存上限')).toBeVisible();
+    await expect(increase).toBeDisabled();
+    await expect(decrease).toBeEnabled();
+    await expectDialogFitsViewport(page);
+
+    await decrease.focus();
+    await page.keyboard.press('Enter');
+    await expect(cart.getByRole('status', { name: '共享单车骑行卡 当前数量 1' })).toHaveText('1');
+    await expect(decrease).toBeDisabled();
+    await expect(increase).toBeEnabled();
+    await expect(
+      cart.getByText('总计', { exact: true }).locator('..').getByText('1,200 里程', { exact: true })
+    ).toBeVisible();
+    await expect(page.locator('nav').getByText('1', { exact: true })).toBeVisible();
+
+    const dimensions = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client);
+  });
+
+  test('cart explains and enforces the ten-item order limit', async ({ page }) => {
+    await createAndLoginUser(page);
+    await page.route('**/api/products', async (route) => {
+      const response = await route.fetch();
+      const body = await response.json() as { data: Array<Record<string, unknown>> };
+      await route.fulfill({
+        response,
+        json: {
+          ...body,
+          data: body.data.map((product) =>
+            product.id === 1 ? { ...product, stock: 12 } : product
+          ),
+        },
+      });
+    });
+
+    await page.goto('/mall');
+    const product = page.getByRole('button', { name: /共享单车骑行卡.*查看详情/ });
+    for (let quantity = 0; quantity < 10; quantity += 1) {
+      await product.click();
+      await page.getByRole('button', { name: '加入购物车' }).click();
+    }
+
+    await product.click();
+    await expect(page.getByRole('button', { name: '单笔最多 10 件' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    await openCart(page);
+    const cart = page.getByRole('dialog');
+    await expect(cart.getByText('单笔最多 10 件')).toBeVisible();
+    await expect(cart.getByRole('button', { name: '增加 共享单车骑行卡 数量' })).toBeDisabled();
+  });
+
   test('list request failure is distinct from an empty category and can retry', async ({ page }) => {
     await createAndLoginUser(page);
     await page.route('**/api/products', (route) => route.fulfill({ status: 503, body: '{}' }));

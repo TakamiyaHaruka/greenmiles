@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCartStore } from '@/stores/cartStore';
+import {
+  getCartItemQuantityLimit,
+  MAX_CART_ITEM_QUANTITY,
+  useCartStore,
+} from '@/stores/cartStore';
 import { useUserStore } from '@/stores/userStore';
 import {
   Dialog,
@@ -15,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { VoucherDisplay } from '@/components/VoucherDisplay';
-import { ShoppingCart, Trash2, Bike, Hotel, TreePine, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, Trash2, Bike, Hotel, TreePine, ShoppingBag, Minus, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
@@ -46,11 +50,12 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDialogProps) {
-  const { items, removeItem, totalMiles } = useCartStore();
+  const { items, incrementItem, decrementItem, removeItem, totalMiles, itemCount } = useCartStore();
   const { user, isAuthenticated, updateMilesBalance } = useUserStore();
   const router = useRouter();
   const balance = user?.miles_balance ?? 0;
   const total = totalMiles();
+  const count = itemCount();
 
   const [confirmItem, setConfirmItem] = useState<typeof items[0] | null>(null);
   const [voucher, setVoucher] = useState<VoucherData | null>(null);
@@ -158,7 +163,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
           </DialogTitle>
           <DialogDescription>
             {items.length > 0
-              ? `共 ${items.length} 件商品`
+              ? `共 ${count} 件商品`
               : '查看您选购的绿色商品'}
           </DialogDescription>
         </DialogHeader>
@@ -170,17 +175,23 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
                 const Icon = ICON_MAP[item.icon_type] || ShoppingBag;
                 const itemTotal = item.mileage_cost * item.quantity;
                 const canAfford = isAuthenticated && balance >= itemTotal;
+                const quantityLimit = getCartItemQuantityLimit(item.stock);
+                const atQuantityLimit = item.quantity >= quantityLimit;
+                const limitMessage = item.stock <= MAX_CART_ITEM_QUANTITY
+                  ? '已达库存上限'
+                  : `单笔最多 ${MAX_CART_ITEM_QUANTITY} 件`;
+                const limitDescriptionId = `cart-item-${item.id}-limit`;
 
                 return (
                   <div
                     key={item.id}
-                    className={cn('flex items-start justify-between gap-3 rounded-lg border border-[#E2E8F0] p-2', variant === 'journey' && 'journey-inset-surface')}
+                    className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border border-[#E2E8F0] p-2', variant === 'journey' && 'journey-inset-surface')}
                   >
-                    <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex min-w-0 items-start gap-2">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10">
                         <Icon className="h-4 w-4 text-accent" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 space-y-1.5">
                         <p className="break-words text-sm font-medium">
                           {item.name}
                           {item.quantity > 1 && (
@@ -191,6 +202,42 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
                           {item.mileage_cost.toLocaleString()} 里程
                           {item.quantity > 1 && ` × ${item.quantity}`}
                         </p>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            onClick={() => decrementItem(item.id)}
+                            disabled={item.quantity <= 1}
+                            aria-label={`减少 ${item.name} 数量`}
+                          >
+                            <Minus aria-hidden="true" />
+                          </Button>
+                          <span
+                            className="min-w-6 text-center text-sm font-medium tabular-nums"
+                            role="status"
+                            aria-label={`${item.name} 当前数量 ${item.quantity}`}
+                            aria-live="polite"
+                          >
+                            {item.quantity}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            onClick={() => incrementItem(item.id)}
+                            disabled={atQuantityLimit}
+                            aria-label={`增加 ${item.name} 数量`}
+                            aria-describedby={atQuantityLimit ? limitDescriptionId : undefined}
+                          >
+                            <Plus aria-hidden="true" />
+                          </Button>
+                          {atQuantityLimit && (
+                            <span id={limitDescriptionId} className="text-[11px] leading-tight text-muted-foreground">
+                              {limitMessage}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">

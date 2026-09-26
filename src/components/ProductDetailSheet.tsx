@@ -1,7 +1,11 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { useCartStore } from '@/stores/cartStore';
+import {
+  getCartItemQuantityLimit,
+  MAX_CART_ITEM_QUANTITY,
+  useCartStore,
+} from '@/stores/cartStore';
 import {
   Sheet,
   SheetContent,
@@ -58,7 +62,7 @@ export function ProductDetailSheet({
   balance,
   variant = 'default',
 }: ProductDetailSheetProps) {
-  const { addItem } = useCartStore();
+  const { addItem, items } = useCartStore();
   const {
     register,
     handleSubmit,
@@ -72,6 +76,15 @@ export function ProductDetailSheet({
   const isPhysical = product.category === 'physical';
   const terms = TERMS_MAP[product.icon_type];
   const outOfStock = product.stock <= 0;
+  const cartItem = items.find((item) => item.id === product.id);
+  const cartQuantity = cartItem?.quantity ?? 0;
+  const stockSnapshot = cartItem?.stock ?? product.stock;
+  const quantityLimit = getCartItemQuantityLimit(stockSnapshot);
+  const atQuantityLimit = !outOfStock && cartQuantity >= quantityLimit;
+  const limitMessage = stockSnapshot <= MAX_CART_ITEM_QUANTITY
+    ? '已达库存上限'
+    : `单笔最多 ${MAX_CART_ITEM_QUANTITY} 件`;
+  const addDisabled = outOfStock || atQuantityLimit;
   const missingMiles = balance == null ? 0 : Math.max(product.mileage_cost - balance, 0);
 
   const onSubmit = (data: AddressForm) => {
@@ -80,6 +93,7 @@ export function ProductDetailSheet({
       name: product.name,
       mileage_cost: product.mileage_cost,
       icon_type: product.icon_type,
+      stock: product.stock,
       address: `${data.name}，${data.phone}，${data.address}`,
     });
     onOpenChange(false);
@@ -87,7 +101,7 @@ export function ProductDetailSheet({
   };
 
   const handleAddToCart = () => {
-    if (outOfStock) return;
+    if (addDisabled) return;
     if (isPhysical) {
       handleSubmit(onSubmit)();
     } else {
@@ -96,6 +110,7 @@ export function ProductDetailSheet({
         name: product.name,
         mileage_cost: product.mileage_cost,
         icon_type: product.icon_type,
+        stock: product.stock,
       });
       onOpenChange(false);
     }
@@ -210,9 +225,9 @@ export function ProductDetailSheet({
         </div>
 
         <SheetFooter>
-          <Button className="w-full" onClick={handleAddToCart} disabled={outOfStock}>
+          <Button className="w-full" onClick={handleAddToCart} disabled={addDisabled}>
             <ShoppingCart className="h-4 w-4 mr-2" />
-            {outOfStock ? '暂时无货' : '加入购物车'}
+            {outOfStock ? '暂时无货' : atQuantityLimit ? limitMessage : '加入购物车'}
           </Button>
         </SheetFooter>
       </SheetContent>

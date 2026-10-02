@@ -6,6 +6,7 @@ import crypto from 'crypto';
 
 const CreateOrderSchema = z.object({
   productId: z.number().int().positive(),
+  expectedUnitCost: z.number().positive('确认价格必须大于 0'),
   quantity: z.number().int().min(1, '兑换数量至少为 1').max(10, '单次最多兑换 10 件').default(1),
   address: z.string().max(500, '地址不能超过 500 字').optional(),
 });
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message || '参数无效' }, { status: 400 });
     }
 
-    const { productId, quantity, address } = parsed.data;
+    const { productId, expectedUnitCost, quantity, address } = parsed.data;
 
     // Transaction: deduct miles + create order
     const result = db.transaction(() => {
@@ -41,6 +42,10 @@ export async function POST(request: NextRequest) {
       const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId) as { id: number; name: string; mileage_cost: number; stock: number; icon_type: string; category: string; project_name: string | null; project_standard: string | null; project_vintage: string | null } | undefined;
       if (!product) {
         throw new Error('PRODUCT_NOT_FOUND');
+      }
+
+      if (product.mileage_cost !== expectedUnitCost) {
+        throw new Error('PRODUCT_PRICE_CHANGED');
       }
 
       if (product.category === 'physical' && !address?.trim()) {
@@ -112,10 +117,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
     if (message === 'PRODUCT_NOT_FOUND') {
-      return NextResponse.json({ error: '商品不存在' }, { status: 404 });
+      return NextResponse.json({ error: '商品不存在', code: 'PRODUCT_NOT_FOUND' }, { status: 404 });
+    }
+    if (message === 'PRODUCT_PRICE_CHANGED') {
+      return NextResponse.json(
+        { error: '商品价格已变化，请按最新价格重新确认', code: 'PRODUCT_PRICE_CHANGED' },
+        { status: 409 },
+      );
     }
     if (message === 'OUT_OF_STOCK') {
-      return NextResponse.json({ error: '商品库存不足' }, { status: 400 });
+      return NextResponse.json({ error: '商品库存不足', code: 'OUT_OF_STOCK' }, { status: 400 });
     }
     if (message === 'ADDRESS_REQUIRED') {
       return NextResponse.json({ error: '实体商品需要填写收货地址' }, { status: 400 });

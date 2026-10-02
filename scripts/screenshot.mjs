@@ -65,12 +65,21 @@ async function main() {
   } else {
     await page.request.post(`${BASE}/api/carbon`, { data: { distance: 1075, aircraftType: 'NARROW_STANDARD', cabinClass: 'Y', route: 'PEK→SHA' } });
     await page.request.post(`${BASE}/api/carbon`, { data: { distance: 1888, aircraftType: 'WIDE_EFFICIENT', cabinClass: 'C', route: 'SHA→SZX' } });
-    await page.request.post(`${BASE}/api/orders`, { data: { productId: 3, quantity: 1 } });
-    await page.request.post(`${BASE}/api/orders`, { data: { productId: 1, quantity: 1 } });
-    await page.request.post(`${BASE}/api/orders`, { data: { productId: 2, quantity: 1 } });
-    await page.request.post(`${BASE}/api/orders`, {
-      data: { productId: 4, quantity: 1, address: '林青，13800138000，北京市朝阳区望京街道 8 号' },
-    });
+    const demoOrders = [
+      { productId: 3, expectedUnitCost: 3000, quantity: 1 },
+      { productId: 1, expectedUnitCost: 1200, quantity: 1 },
+      { productId: 2, expectedUnitCost: 2000, quantity: 1 },
+      {
+        productId: 4,
+        expectedUnitCost: 500,
+        quantity: 1,
+        address: '林青，13800138000，北京市朝阳区望京街道 8 号',
+      },
+    ];
+    for (const data of demoOrders) {
+      const order = await page.request.post(`${BASE}/api/orders`, { data });
+      if (!order.ok()) throw new Error(`demo order failed: ${order.status()}`);
+    }
   }
 
   // Member dashboard with real KPIs

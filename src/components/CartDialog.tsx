@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { publishProductCatalogChanged } from '@/lib/productCatalogSync';
+import { useProductCatalog } from '@/hooks/useProductCatalog';
 
 interface CartDialogProps {
   open: boolean;
@@ -51,18 +52,74 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDialogProps) {
-  const { items, incrementItem, decrementItem, removeItem, totalMiles, itemCount } = useCartStore();
+  const {
+    items,
+    reconciliationNotices,
+    incrementItem,
+    decrementItem,
+    removeItem,
+    dismissReconciliationNotice,
+    totalMiles,
+    itemCount,
+  } = useCartStore();
+  const {
+    loading: catalogLoading,
+    validating: catalogValidating,
+    validationError: catalogValidationError,
+    validated: catalogValidated,
+    retry: retryCatalog,
+  } = useProductCatalog({ enabled: open });
   const { user, isAuthenticated, updateMilesBalance } = useUserStore();
   const router = useRouter();
   const balance = user?.miles_balance ?? 0;
   const total = totalMiles();
   const count = itemCount();
 
-  const [confirmItem, setConfirmItem] = useState<typeof items[0] | null>(null);
+  const [confirmItemId, setConfirmItemId] = useState<number | null>(null);
   const [voucher, setVoucher] = useState<VoucherData | null>(null);
   const [settling, setSettling] = useState(false);
+  const confirmItem = items.find((item) => item.id === confirmItemId) ?? null;
+  const confirmPriceNotice = confirmItem
+    ? reconciliationNotices.findLast(
+        (notice) => notice.productId === confirmItem.id && notice.kind === 'price',
+      )
+    : undefined;
+  const catalogChecking = catalogLoading || catalogValidating;
+  const catalogReady = open && catalogValidated && !catalogChecking && !catalogValidationError;
+  const confirmTotal = confirmItem ? confirmItem.mileage_cost * confirmItem.quantity : 0;
+  const confirmCanAfford = Boolean(confirmItem && isAuthenticated && balance >= confirmTotal);
+  const confirmNeedsAddress = Boolean(
+    confirmItem?.category === 'physical' && !confirmItem.address?.trim(),
+  );
 
-  const handleSettle = async (item: typeof items[0]) => {
+  const handleCartOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setConfirmItemId(null);
+      setSettling(false);
+    }
+    onOpenChange(nextOpen);
+  };
+
+  const handleSettle = async (itemId: number) => {
+    const item = useCartStore.getState().items.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      setConfirmItemId(null);
+      toast.error('商品已不在购物车中');
+      return;
+    }
+    if (!catalogReady) {
+      toast.error('请先完成商品价格与库存验证');
+      return;
+    }
+    if (item.category === 'physical' && !item.address?.trim()) {
+      toast.error('实体商品需要填写收货地址，请移除后重新加入');
+      return;
+    }
+    if (!isAuthenticated || balance < item.mileage_cost * item.quantity) {
+      toast.error('里程余额不足');
+      return;
+    }
+
     setSettling(true);
     try {
       const res = await fetch('/api/orders', {
@@ -70,6 +127,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: item.id,
+          expectedUnitCost: item.mileage_cost,
           quantity: item.quantity,
           address: item.address,
         }),
@@ -78,7 +136,13 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
 
       if (!res.ok) {
         const errorMessage = typeof data?.error === 'string' ? data.error : '兑换失败';
-        if (errorMessage === '商品库存不足' || errorMessage === '商品不存在') {
+        const errorCode = typeof data?.code === 'string' ? data.code : '';
+        if (
+          errorCode === 'PRODUCT_PRICE_CHANGED'
+          || errorCode === 'OUT_OF_STOCK'
+          || errorCode === 'PRODUCT_NOT_FOUND'
+        ) {
+          setConfirmItemId(null);
           publishProductCatalogChanged();
         }
         toast.error(errorMessage);
@@ -91,7 +155,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
       // Remove from cart
       removeItem(item.id);
       // Show voucher
-      setConfirmItem(null);
+      setConfirmItemId(null);
       setVoucher(data.data);
     } catch {
       toast.error('兑换失败，请稍后重试');
@@ -136,7 +200,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
   // Confirm dialog
   if (confirmItem) {
     return (
-      <Dialog open={true} onOpenChange={() => setConfirmItem(null)}>
+      <Dialog open={true} onOpenChange={() => setConfirmItemId(null)}>
         <DialogContent className={cn('sm:max-w-sm', variant === 'home' && 'home-portal-surface', variant === 'journey' && 'journey-portal-surface')}>
           <DialogHeader>
             <DialogTitle>确认兑换</DialogTitle>
@@ -145,13 +209,49 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
               {confirmItem.name}
               {confirmItem.quantity > 1 ? ` × ${confirmItem.quantity}` : ''}？
             </DialogDescription>
+            {confirmPriceNotice && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status">
+                单价已从 {confirmPriceNotice.previousUnitCost?.toLocaleString()} 调整为{' '}
+                {confirmItem.mileage_cost.toLocaleString()} 里程，本次将按新价格兑换。
+              </p>
+            )}
+            {!confirmCanAfford && (
+              <p className="rounded-lg bg-destructive/8 px-3 py-2 text-xs text-destructive" role="alert">
+                当前里程不足，还差 {Math.max(confirmTotal - balance, 0).toLocaleString()} 里程。
+              </p>
+            )}
+            {confirmNeedsAddress && (
+              <p className="rounded-lg bg-destructive/8 px-3 py-2 text-xs text-destructive" role="alert">
+                商品已变为实体商品，请返回购物车移除后重新加入并填写收货地址。
+              </p>
+            )}
+            {catalogValidationError && (
+              <div className="flex items-center justify-between gap-3 rounded-lg bg-destructive/8 px-3 py-2" role="alert">
+                <p className="text-xs text-destructive">商品信息验证失败，验证成功前不能结算。</p>
+                <Button type="button" variant="outline" size="sm" onClick={retryCatalog}>
+                  重试
+                </Button>
+              </div>
+            )}
+            {catalogChecking && (
+              <p className="text-xs text-muted-foreground" role="status">正在验证最新价格与库存…</p>
+            )}
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmItem(null)}>
+            <Button variant="outline" onClick={() => setConfirmItemId(null)}>
               取消
             </Button>
-            <Button onClick={() => handleSettle(confirmItem)} disabled={settling}>
-              {settling ? '兑换中...' : '确认兑换'}
+            <Button
+              onClick={() => handleSettle(confirmItem.id)}
+              disabled={settling || !catalogReady || !confirmCanAfford || confirmNeedsAddress}
+            >
+              {settling
+                ? '兑换中...'
+                : catalogChecking
+                  ? '验证商品中...'
+                  : catalogValidationError
+                    ? '等待重试'
+                    : '按当前价格确认兑换'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -160,7 +260,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleCartOpenChange}>
       <DialogContent className={cn('sm:max-w-md', variant === 'home' && 'home-portal-surface', variant === 'journey' && 'journey-portal-surface')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -174,6 +274,42 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
           </DialogDescription>
         </DialogHeader>
 
+        {reconciliationNotices.length > 0 && (
+          <div className="max-h-32 space-y-2 overflow-y-auto" aria-label="购物车更新通知">
+            {reconciliationNotices.map((notice) => (
+              <div
+                key={notice.id}
+                className="flex items-start justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+                role="status"
+              >
+                <span>{notice.message}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto shrink-0 px-2 py-0.5"
+                  onClick={() => dismissReconciliationNotice(notice.id)}
+                >
+                  知道了
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {catalogValidationError && (
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-destructive/8 px-3 py-2" role="alert">
+            <p className="text-xs text-destructive">商品信息验证失败，购物车已保留；验证成功前不能结算。</p>
+            <Button type="button" variant="outline" size="sm" onClick={retryCatalog}>
+              重试
+            </Button>
+          </div>
+        )}
+
+        {catalogChecking && (
+          <p className="text-xs text-muted-foreground" role="status">正在验证最新价格与库存…</p>
+        )}
+
         {items.length > 0 ? (
           <>
             <div className="max-h-64 overflow-y-auto space-y-3">
@@ -181,6 +317,7 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
                 const Icon = ICON_MAP[item.icon_type] || ShoppingBag;
                 const itemTotal = item.mileage_cost * item.quantity;
                 const canAfford = isAuthenticated && balance >= itemTotal;
+                const needsAddress = item.category === 'physical' && !item.address?.trim();
                 const quantityLimit = getCartItemQuantityLimit(item.stock);
                 const atQuantityLimit = item.quantity >= quantityLimit;
                 const limitMessage = item.stock <= MAX_CART_ITEM_QUANTITY
@@ -249,14 +386,26 @@ export function CartDialog({ open, onOpenChange, variant = 'default' }: CartDial
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <Button
                         size="sm"
-                        disabled={isAuthenticated && !canAfford}
-                        onClick={() => isAuthenticated ? setConfirmItem(item) : handleSignIn()}
+                        disabled={isAuthenticated && (!canAfford || !catalogReady || needsAddress)}
+                        onClick={() => isAuthenticated ? setConfirmItemId(item.id) : handleSignIn()}
                       >
-                        {isAuthenticated ? '结算' : '登录后兑换'}
+                        {isAuthenticated
+                          ? catalogChecking
+                            ? '验证中...'
+                            : catalogValidationError
+                              ? '等待重试'
+                              : needsAddress
+                                ? '需填写地址'
+                                : '结算'
+                          : '登录后兑换'}
                       </Button>
                       {!isAuthenticated ? (
                         <p className="max-w-32 text-right text-xs text-muted-foreground">
                           登录后查看余额
+                        </p>
+                      ) : needsAddress ? (
+                        <p className="max-w-32 text-right text-xs text-destructive">
+                          请移除后重新加入并填写地址
                         </p>
                       ) : !canAfford && (
                         <p className="text-xs text-destructive">

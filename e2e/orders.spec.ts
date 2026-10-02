@@ -6,7 +6,7 @@ const LONG_PRODUCT = '超长名称环保帆布袋与可循环旅行收纳套装�
 
 async function createPendingOrder(page: Page) {
   const response = await page.request.post('/api/orders', {
-    data: { productId: 4, quantity: 1, address: ADDRESS },
+    data: { productId: 4, expectedUnitCost: 500, quantity: 1, address: ADDRESS },
   });
   expect(response.status()).toBe(200);
   const payload = await response.json();
@@ -136,7 +136,7 @@ test.describe('阶段三订单、账本与凭证', () => {
         value: { writeText: () => Promise.reject(new Error('clipboard denied')) },
       });
     });
-    const response = await page.request.post('/api/orders', { data: { productId: 2, quantity: 1 } });
+    const response = await page.request.post('/api/orders', { data: { productId: 2, expectedUnitCost: 2000, quantity: 1 } });
     expect((await response.json()).data.status).toBe('completed');
 
     await page.route('**/api/orders', (route) => route.fulfill({ status: 500, body: '{}' }));

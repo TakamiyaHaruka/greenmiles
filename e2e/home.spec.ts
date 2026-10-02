@@ -114,7 +114,7 @@ test.describe('phase 1 home experience', () => {
         route: 'PEK→SHA',
       },
     });
-    await page.request.post('/api/orders', { data: { productId: 3, quantity: 1 } });
+    await page.request.post('/api/orders', { data: { productId: 3, expectedUnitCost: 3000, quantity: 1 } });
 
     await page.goto('/');
     await expect(page.getByText('已保存航班').locator('..').getByText(/^1 段$/)).toBeVisible();

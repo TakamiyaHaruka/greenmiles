@@ -79,8 +79,8 @@ test.describe('journey 3+4 — redeem with miles and see the order', () => {
   });
 
   for (const conflict of [
-    { error: '商品库存不足', outcome: 'out-of-stock' },
-    { error: '商品不存在', outcome: 'removed' },
+    { error: '商品库存不足', code: 'OUT_OF_STOCK', outcome: 'out-of-stock' },
+    { error: '商品不存在', code: 'PRODUCT_NOT_FOUND', outcome: 'removed' },
   ] as const) {
     test(`a ${conflict.error} settlement refreshes the catalog and preserves the error`, async ({ page }) => {
       await createAndLoginUser(page);
@@ -100,7 +100,7 @@ test.describe('journey 3+4 — redeem with miles and see the order', () => {
         await route.fulfill({
           status: conflict.error === '商品不存在' ? 404 : 400,
           contentType: 'application/json',
-          body: JSON.stringify({ error: conflict.error }),
+          body: JSON.stringify({ error: conflict.error, code: conflict.code }),
         });
       });
 

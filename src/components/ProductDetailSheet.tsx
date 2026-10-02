@@ -91,6 +91,7 @@ export function ProductDetailSheet({
     addItem({
       id: product.id,
       name: product.name,
+      category: product.category,
       mileage_cost: product.mileage_cost,
       icon_type: product.icon_type,
       stock: product.stock,
@@ -108,6 +109,7 @@ export function ProductDetailSheet({
       addItem({
         id: product.id,
         name: product.name,
+        category: product.category,
         mileage_cost: product.mileage_cost,
         icon_type: product.icon_type,
         stock: product.stock,

@@ -14,7 +14,7 @@ test.describe('阶段三碳足迹', () => {
   test('展示投影、可交互图表、季度报告和最近记录', async ({ page }) => {
     await createAndLoginUser(page);
     await createFlight(page);
-    const order = await page.request.post('/api/orders', { data: { productId: 3, quantity: 1 } });
+    const order = await page.request.post('/api/orders', { data: { productId: 3, expectedUnitCost: 3000, quantity: 1 } });
     expect(order.status()).toBe(200);
 
     await page.goto('/footprint');

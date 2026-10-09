@@ -2,11 +2,132 @@ import { test, expect } from '@playwright/test';
 import { createAndLoginUser, adminLoginViaApi } from './helpers';
 
 test.describe('journey 6 — admin order fulfilment pipeline', () => {
+  test('product changes refresh an open mall tab and synchronize its detail sheet', async ({ page, context }) => {
+    await createAndLoginUser(page);
+    await adminLoginViaApi(page);
+    const mallPage = await context.newPage();
+    const homePage = await context.newPage();
+    await mallPage.goto('/mall');
+    await expect(mallPage.getByRole('heading', { name: '绿色商城' })).toBeVisible();
+    await homePage.goto('/');
+    await expect(homePage.getByRole('heading', { name: '精选绿色好物' })).toBeVisible();
+
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', { name: '管理后台', exact: true })).toBeVisible();
+
+    const uniqueName = `跨标签目录-${Date.now()}`;
+    const updatedName = `${uniqueName}-已更新`;
+    await page.getByRole('button', { name: '新增商品' }).click();
+    const createDialog = page.getByRole('dialog');
+    await createDialog.getByLabel(/商品名称/).fill(uniqueName);
+    await createDialog.getByLabel(/商品描述/).fill('跨标签刷新前');
+    await createDialog.getByLabel(/类别/).click();
+    await page.getByRole('option', { name: '虚拟卡券' }).click();
+    await createDialog.getByLabel(/所需里程/).fill('1');
+    await createDialog.getByLabel(/库存/).fill('7');
+    await createDialog.getByRole('button', { name: '保存' }).click();
+
+    const mallProduct = mallPage.getByRole('button', { name: new RegExp(uniqueName) });
+    const homeProduct = homePage.getByRole('button', { name: new RegExp(uniqueName) });
+    await expect(mallProduct).toBeVisible();
+    await expect(homeProduct).toBeVisible();
+    await mallProduct.click();
+    await homeProduct.click();
+    await expect(mallPage.getByRole('dialog').getByText('库存: 7')).toBeVisible();
+    await expect(homePage.getByRole('dialog').getByText('库存: 7')).toBeVisible();
+
+    await mallPage.getByRole('dialog').getByRole('button', { name: '加入购物车' }).click();
+    for (let quantity = 1; quantity < 4; quantity += 1) {
+      await mallProduct.click();
+      await mallPage.getByRole('dialog').getByRole('button', { name: '加入购物车' }).click();
+    }
+    await mallProduct.click();
+
+    const createdRow = page.getByRole('row').filter({ hasText: uniqueName });
+    await createdRow.getByRole('button', { name: `编辑 ${uniqueName}` }).click();
+    const editDialog = page.getByRole('dialog');
+    await editDialog.getByLabel(/商品名称/).fill(updatedName);
+    await editDialog.getByLabel(/商品描述/).fill('跨标签刷新后');
+    await editDialog.getByLabel(/所需里程/).fill('2');
+    await editDialog.getByLabel(/库存/).fill('3');
+    await editDialog.getByRole('button', { name: '保存' }).click();
+
+    const mallDialog = mallPage.getByRole('dialog');
+    const homeDialog = homePage.getByRole('dialog');
+    await expect(mallDialog.getByRole('heading', { name: updatedName })).toBeVisible();
+    await expect(homeDialog.getByRole('heading', { name: updatedName })).toBeVisible();
+    await expect(mallDialog.getByText('跨标签刷新后')).toBeVisible();
+    await expect(homeDialog.getByText('跨标签刷新后')).toBeVisible();
+    await expect(mallDialog.getByText('库存: 3')).toBeVisible();
+    await expect(homeDialog.getByText('库存: 3')).toBeVisible();
+
+    await mallPage.keyboard.press('Escape');
+    await mallPage.getByRole('button', { name: '打开购物车' }).click();
+    await expect(mallPage.getByText(new RegExp(`「${updatedName}」价格已从 1 调整为 2`))).toBeVisible();
+    await expect(mallPage.getByText(new RegExp(`「${updatedName}」库存已变化，数量已从 4 调整为 3`))).toBeVisible();
+    await expect(mallPage.getByText(updatedName).first()).toBeVisible();
+    await expect(mallPage.getByLabel(`${updatedName} 当前数量 3`)).toBeVisible();
+    await mallPage.keyboard.press('Escape');
+
+    const updatedRow = page.getByRole('row').filter({ hasText: updatedName });
+    await updatedRow.getByRole('button', { name: `删除 ${updatedName}` }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '确认删除' }).click();
+
+    await expect(mallPage.getByRole('dialog')).toHaveCount(0);
+    await expect(homePage.getByRole('dialog')).toHaveCount(0);
+    await expect(mallPage.getByText(updatedName)).toHaveCount(0);
+    await expect(homePage.getByText(updatedName)).toHaveCount(0);
+
+    await mallPage.getByRole('button', { name: '打开购物车' }).click();
+    await expect(mallPage.getByText(new RegExp(`「${updatedName}」已下架，已从购物车移除`))).toBeVisible();
+    await expect(mallPage.getByText('购物车空空如也')).toBeVisible();
+  });
+
+  test('a repriced cart item is explicitly reconfirmed at the new price before redemption', async ({ page, context }) => {
+    await createAndLoginUser(page);
+    await adminLoginViaApi(page);
+    const mallPage = await context.newPage();
+    await mallPage.goto('/mall');
+    await page.goto('/admin');
+
+    const productName = `改价复核-${Date.now()}`;
+    await page.getByRole('button', { name: '新增商品' }).click();
+    const createDialog = page.getByRole('dialog');
+    await createDialog.getByLabel(/商品名称/).fill(productName);
+    await createDialog.getByLabel(/商品描述/).fill('购物车改价复核');
+    await createDialog.getByLabel(/类别/).click();
+    await page.getByRole('option', { name: '虚拟卡券' }).click();
+    await createDialog.getByLabel(/所需里程/).fill('100');
+    await createDialog.getByLabel(/库存/).fill('5');
+    await createDialog.getByRole('button', { name: '保存' }).click();
+
+    const mallProduct = mallPage.getByRole('button', { name: new RegExp(productName) });
+    await expect(mallProduct).toBeVisible();
+    await mallProduct.click();
+    await mallPage.getByRole('dialog').getByRole('button', { name: '加入购物车' }).click();
+
+    const productRow = page.getByRole('row').filter({ hasText: productName });
+    await productRow.getByRole('button', { name: `编辑 ${productName}` }).click();
+    const editDialog = page.getByRole('dialog');
+    await editDialog.getByLabel(/所需里程/).fill('250');
+    await editDialog.getByRole('button', { name: '保存' }).click();
+
+    await mallPage.getByRole('button', { name: '打开购物车' }).click();
+    await expect(mallPage.getByText(new RegExp(`「${productName}」价格已从 100 调整为 250`))).toBeVisible();
+    await mallPage.getByRole('button', { name: '结算' }).click();
+    await expect(mallPage.getByText(new RegExp(`确认用 250 里程兑换 ${productName}`))).toBeVisible();
+    await mallPage.getByRole('button', { name: '按当前价格确认兑换' }).click();
+
+    await expect(mallPage.getByText('兑换成功')).toBeVisible();
+    await expect(mallPage.getByRole('dialog').getByText(productName)).toBeVisible();
+    await expect(mallPage.locator('nav').getByText('9,750')).toBeVisible();
+  });
+
   test('ship and complete a member order; illegal transitions are rejected', async ({ page }) => {
     // A member places a physical order (pending) via API
     const email = await createAndLoginUser(page);
     const order = await page.request.post('/api/orders', {
-      data: { productId: 4, quantity: 2, address: '林青，13800138000，北京市朝阳区望京街道 8 号' },
+      data: { productId: 4, expectedUnitCost: 500, quantity: 2, address: '林青，13800138000，北京市朝阳区望京街道 8 号' },
     });
     const orderId = (await order.json()).data.id;
     expect(orderId).toBeGreaterThan(0);

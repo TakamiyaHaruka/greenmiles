@@ -38,6 +38,10 @@ function makePostRequest(body: unknown, cookie = 'token=valid') {
   });
 }
 
+function validPostBody(overrides: Record<string, unknown> = {}) {
+  return { productId: 1, expectedUnitCost: 1000, ...overrides };
+}
+
 function getRequest(cookie = 'token=valid') {
   return new NextRequest('http://localhost/api/orders', {
     method: 'GET',
@@ -51,21 +55,21 @@ describe('POST /api/orders', () => {
   });
 
   it('returns 401 when no token', async () => {
-    const response = await POST(makePostRequest({ productId: 1 }, ''));
+    const response = await POST(makePostRequest(validPostBody(), ''));
     const data = await response.json();
     expect(response.status).toBe(401);
   });
 
   it('returns 401 when token is invalid', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce(null as never);
-    const response = await POST(makePostRequest({ productId: 1 }));
+    const response = await POST(makePostRequest(validPostBody()));
     const data = await response.json();
     expect(response.status).toBe(401);
   });
 
   it('returns 400 for invalid body', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
-    const response = await POST(makePostRequest({ productId: -1 }));
+    const response = await POST(makePostRequest(validPostBody({ productId: -1 })));
     const data = await response.json();
     expect(response.status).toBe(400);
   });
@@ -76,7 +80,7 @@ describe('POST /api/orders', () => {
       throw new Error('USER_NOT_FOUND');
     });
 
-    const response = await POST(makePostRequest({ productId: 1 }));
+    const response = await POST(makePostRequest(validPostBody()));
     const data = await response.json();
     expect(response.status).toBe(404);
   });
@@ -87,9 +91,10 @@ describe('POST /api/orders', () => {
       throw new Error('PRODUCT_NOT_FOUND');
     });
 
-    const response = await POST(makePostRequest({ productId: 999 }));
+    const response = await POST(makePostRequest(validPostBody({ productId: 999 })));
     const data = await response.json();
     expect(response.status).toBe(404);
+    expect(data.code).toBe('PRODUCT_NOT_FOUND');
   });
 
   it('returns 400 when out of stock', async () => {
@@ -98,9 +103,10 @@ describe('POST /api/orders', () => {
       throw new Error('OUT_OF_STOCK');
     });
 
-    const response = await POST(makePostRequest({ productId: 1 }));
+    const response = await POST(makePostRequest(validPostBody()));
     const data = await response.json();
     expect(response.status).toBe(400);
+    expect(data.code).toBe('OUT_OF_STOCK');
   });
 
   it('returns 400 when insufficient balance', async () => {
@@ -109,7 +115,7 @@ describe('POST /api/orders', () => {
       throw new Error('INSUFFICIENT_BALANCE');
     });
 
-    const response = await POST(makePostRequest({ productId: 1 }));
+    const response = await POST(makePostRequest(validPostBody()));
     const data = await response.json();
     expect(response.status).toBe(400);
   });
@@ -123,7 +129,7 @@ describe('POST /api/orders', () => {
       newBalance: 9000,
     }));
 
-    const response = await POST(makePostRequest({ productId: 1 }));
+    const response = await POST(makePostRequest(validPostBody()));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -137,7 +143,7 @@ describe('POST /api/orders', () => {
       throw new Error('Unknown error');
     });
 
-    const response = await POST(makePostRequest({ productId: 1 }));
+    const response = await POST(makePostRequest(validPostBody()));
     const data = await response.json();
     expect(response.status).toBe(500);
   });
@@ -145,7 +151,7 @@ describe('POST /api/orders', () => {
   it('returns 400 when quantity exceeds the per-order cap', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
 
-    const response = await POST(makePostRequest({ productId: 1, quantity: 11 }));
+    const response = await POST(makePostRequest(validPostBody({ quantity: 11 })));
     const data = await response.json();
     expect(response.status).toBe(400);
     expect(data.error).toBe('单次最多兑换 10 件');
@@ -157,7 +163,7 @@ describe('POST /api/orders', () => {
       .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
       .mockReturnValueOnce({ id: 4, name: '帆布袋', mileage_cost: 500, stock: 30, icon_type: 'bag', category: 'physical' });
 
-    const response = await POST(makePostRequest({ productId: 4 }));
+    const response = await POST(makePostRequest(validPostBody({ productId: 4, expectedUnitCost: 500 })));
     const data = await response.json();
     expect(response.status).toBe(400);
     expect(data.error).toBe('实体商品需要填写收货地址');
@@ -169,7 +175,7 @@ describe('POST /api/orders', () => {
       .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
       .mockReturnValueOnce({ id: 1, name: '骑行卡', mileage_cost: 1200, stock: 2, icon_type: 'bike', category: 'virtual' });
 
-    const response = await POST(makePostRequest({ productId: 1, quantity: 3 }));
+    const response = await POST(makePostRequest(validPostBody({ expectedUnitCost: 1200, quantity: 3 })));
     const data = await response.json();
     expect(response.status).toBe(400);
     expect(data.error).toBe('商品库存不足');
@@ -182,7 +188,7 @@ describe('POST /api/orders', () => {
       .mockReturnValueOnce({ id: 1, name: '骑行卡', mileage_cost: 1200, stock: 100, icon_type: 'bike', category: 'virtual' });
     mockRun.mockReturnValue({ lastInsertRowid: 42 });
 
-    const response = await POST(makePostRequest({ productId: 1, quantity: 3 }));
+    const response = await POST(makePostRequest(validPostBody({ expectedUnitCost: 1200, quantity: 3 })));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -204,7 +210,12 @@ describe('POST /api/orders', () => {
     mockRun.mockReturnValue({ lastInsertRowid: 7 });
 
     const response = await POST(
-      makePostRequest({ productId: 4, quantity: 2, address: '张三，13800138000，北京市朝阳区' })
+      makePostRequest(validPostBody({
+        productId: 4,
+        expectedUnitCost: 500,
+        quantity: 2,
+        address: '张三，13800138000，北京市朝阳区',
+      }))
     );
     const data = await response.json();
 
@@ -221,6 +232,32 @@ describe('POST /api/orders', () => {
       '张三，13800138000，北京市朝阳区',
       2
     );
+  });
+
+  it('returns a stable conflict before any write when the confirmed price is stale', async () => {
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+    mockGet
+      .mockReturnValueOnce({ id: 1, miles_balance: 10000 })
+      .mockReturnValueOnce({ id: 1, name: '骑行卡', mileage_cost: 1200, stock: 5, icon_type: 'bike', category: 'virtual' });
+
+    const response = await POST(makePostRequest(validPostBody({ expectedUnitCost: 1000 })));
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data).toEqual({
+      error: '商品价格已变化，请按最新价格重新确认',
+      code: 'PRODUCT_PRICE_CHANGED',
+    });
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('requires the client-confirmed unit price', async () => {
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' } as never);
+
+    const response = await POST(makePostRequest({ productId: 1 }));
+
+    expect(response.status).toBe(400);
+    expect(mockTransactionFn).not.toHaveBeenCalled();
   });
 });
 

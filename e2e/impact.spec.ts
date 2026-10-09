@@ -34,8 +34,8 @@ test.describe('阶段四我的成果', () => {
       expect(response.status()).toBe(200);
     }
 
-    expect((await page.request.post('/api/orders', { data: { productId: 3, quantity: 1 } })).status()).toBe(200);
-    expect((await page.request.post('/api/orders', { data: { productId: 1, quantity: 1 } })).status()).toBe(200);
+    expect((await page.request.post('/api/orders', { data: { productId: 3, expectedUnitCost: 3000, quantity: 1 } })).status()).toBe(200);
+    expect((await page.request.post('/api/orders', { data: { productId: 1, expectedUnitCost: 1200, quantity: 1 } })).status()).toBe(200);
     const db = new Database(E2E_DB);
     const product = db.prepare(`
       INSERT INTO products (name, description, category, mileage_cost, stock, icon_type)
@@ -45,7 +45,7 @@ test.describe('阶段四我的成果', () => {
     db.close();
 
     const physicalOrder = await page.request.post('/api/orders', {
-      data: { productId: physicalProductId, quantity: 1, address: '北京市测试路 1 号' },
+      data: { productId: physicalProductId, expectedUnitCost: 500, quantity: 1, address: '北京市测试路 1 号' },
     });
     expect(physicalOrder.status()).toBe(200);
     const physicalBody = await physicalOrder.json();
@@ -108,7 +108,7 @@ test.describe('阶段四我的成果', () => {
   test('批量兑换按凭证份数汇总而不是按订单行计数', async ({ page }) => {
     await createAndLoginUser(page);
     const order = await page.request.post('/api/orders', {
-      data: { productId: 1, quantity: 3 },
+      data: { productId: 1, expectedUnitCost: 1200, quantity: 3 },
     });
     expect(order.status()).toBe(200);
 

@@ -189,12 +189,13 @@ test.describe('phase 1 home experience', () => {
 
     await page.goto('/mall');
     await expect(page.locator('nav')).toHaveClass(/journey-nav/);
-    await expect(page.locator('.journey-surface-light').first()).toBeVisible();
-    const mallGlass = await page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backdropFilter);
-    expect(mallGlass).toContain('blur(');
+    const mallProductCard = page.locator('.journey-page [data-slot="card"].journey-surface-light').first();
+    await expect(mallProductCard).toBeVisible();
+    await expect.poll(() => mallProductCard.evaluate((element) => getComputedStyle(element).backdropFilter)).toContain('blur(');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-glass-mode', 'glass');
-    await expect.poll(() => page.locator('.journey-surface-light').first().evaluate((element) => getComputedStyle(element).backdropFilter)).toContain('blur(');
+    await expect(mallProductCard).toBeVisible();
+    await expect.poll(() => mallProductCard.evaluate((element) => getComputedStyle(element).backdropFilter)).toContain('blur(');
 
     await page.setViewportSize({ width: 320, height: 812 });
     await page.getByRole('button', { name: '打开导航菜单' }).click();

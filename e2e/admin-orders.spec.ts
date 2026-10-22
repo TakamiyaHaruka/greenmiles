@@ -200,7 +200,9 @@ test.describe('journey 6 — admin order fulfilment pipeline', () => {
 
     await page.getByLabel('管理员密码').fill('wrong-password');
     await page.getByRole('button', { name: '进入管理后台' }).click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    const loginError = page.locator('#admin-login-error');
+    await expect(loginError).toBeVisible();
+    await expect(loginError).toHaveText('管理员密码错误');
 
     await page.route('**/api/admin/products', (route) => route.fulfill({
       status: 200,

@@ -32,6 +32,7 @@ import { SharePoster } from '@/components/SharePoster';
 import { projectedOffsetKg } from '@/lib/carbon';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/stores/userStore';
+import { publishProductCatalogChanged } from '@/lib/productCatalogSync';
 
 interface Order {
   id: number;
@@ -73,6 +74,23 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
 };
 
 const TIP = '选择直飞航班可减少约 20% 碳排放';
+const REQUEST_TIMEOUT_MS = 10_000;
+
+async function fetchJson(url: string, options: RequestInit = {}) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  if (options.signal?.aborted) controller.abort();
+  const timeout = window.setTimeout(abort, REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { ...options, cache: 'no-store', signal: controller.signal });
+    const payload: unknown = await response.json();
+    return { response, payload };
+  } finally {
+    window.clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', abort);
+  }
+}
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -112,24 +130,25 @@ function isMilesTransaction(value: unknown): value is MilesTransaction {
 }
 
 async function fetchOrdersData(signal: AbortSignal): Promise<Order[]> {
-  const response = await fetch('/api/orders', { signal });
+  const { response, payload: body } = await fetchJson('/api/orders', { signal });
   if (!response.ok) throw new Error('订单暂时无法加载');
-  const payload = await response.json() as { data?: unknown };
-  if (!Array.isArray(payload.data) || !payload.data.every(isOrder)) {
+  const payload = body as { data?: unknown } | null;
+  if (!Array.isArray(payload?.data) || !payload.data.every(isOrder)) {
     throw new Error('订单响应无效');
   }
   return payload.data;
 }
 
 async function fetchMilesData(signal: AbortSignal): Promise<{ transactions: MilesTransaction[]; balance: number }> {
-  const response = await fetch('/api/miles', { signal });
+  const { response, payload: body } = await fetchJson('/api/miles', { signal });
   if (!response.ok) throw new Error('里程明细暂时无法加载');
-  const payload = await response.json() as {
+  const payload = body as {
     data?: { transactions?: unknown; balance?: unknown };
-  };
-  if (!Array.isArray(payload.data?.transactions)
+  } | null;
+  if (!Array.isArray(payload?.data?.transactions)
     || !payload.data.transactions.every(isMilesTransaction)
-    || !isFiniteNumber(payload.data.balance)) {
+    || !isFiniteNumber(payload.data.balance)
+    || !Number.isSafeInteger(payload.data.balance) || payload.data.balance < 0) {
     throw new Error('里程响应无效');
   }
   return { transactions: payload.data.transactions, balance: payload.data.balance };
@@ -150,6 +169,9 @@ export default function OrdersPage() {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelUnconfirmed, setCancelUnconfirmed] = useState(false);
+  const cancelInFlight = useRef(false);
+  const cancelController = useRef<AbortController | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const ordersRequestSequence = useRef(0);
@@ -157,6 +179,7 @@ export default function OrdersPage() {
   const ordersController = useRef<AbortController | null>(null);
   const milesController = useRef<AbortController | null>(null);
   const orderFocusRefs = useRef(new Map<number, HTMLDivElement>());
+  const retryOrdersRef = useRef<HTMLButtonElement | null>(null);
   const focusOrderAnchorOnClose = useRef(false);
   const lastCancelOrderId = useRef<number | null>(null);
   const updateMilesBalance = useUserStore((state) => state.updateMilesBalance);
@@ -173,8 +196,9 @@ export default function OrdersPage() {
       if (requestSequence !== ordersRequestSequence.current) return;
       setOrders(nextOrders);
       setOrdersError(null);
-    } catch (error) {
-      if (requestSequence === ordersRequestSequence.current && !isAbortError(error)) {
+      return nextOrders;
+    } catch {
+      if (requestSequence === ordersRequestSequence.current && !controller.signal.aborted) {
         setOrdersError('订单暂时无法加载');
       }
     } finally {
@@ -197,9 +221,11 @@ export default function OrdersPage() {
       if (requestSequence !== milesRequestSequence.current) return;
       setTransactions(nextMiles.transactions);
       setBalance(nextMiles.balance);
+      updateMilesBalance(nextMiles.balance);
       setLedgerError(null);
-    } catch (error) {
-      if (requestSequence === milesRequestSequence.current && !isAbortError(error)) {
+      return nextMiles;
+    } catch {
+      if (requestSequence === milesRequestSequence.current && !controller.signal.aborted) {
         setLedgerError('里程明细暂时无法加载');
       }
     } finally {
@@ -208,7 +234,7 @@ export default function OrdersPage() {
         if (milesController.current === controller) milesController.current = null;
       }
     }
-  }, []);
+  }, [updateMilesBalance]);
 
   useEffect(() => {
     const initialOrdersSequence = ++ordersRequestSequence.current;
@@ -224,8 +250,8 @@ export default function OrdersPage() {
         setOrders(nextOrders);
         setOrdersError(null);
       })
-      .catch((error) => {
-        if (initialOrdersSequence === ordersRequestSequence.current && !isAbortError(error)) {
+      .catch(() => {
+        if (initialOrdersSequence === ordersRequestSequence.current && !initialOrdersController.signal.aborted) {
           setOrdersError('订单暂时无法加载');
         }
       })
@@ -238,10 +264,11 @@ export default function OrdersPage() {
         if (initialMilesSequence !== milesRequestSequence.current) return;
         setTransactions(nextMiles.transactions);
         setBalance(nextMiles.balance);
+        updateMilesBalance(nextMiles.balance);
         setLedgerError(null);
       })
-      .catch((error) => {
-        if (initialMilesSequence === milesRequestSequence.current && !isAbortError(error)) {
+      .catch(() => {
+        if (initialMilesSequence === milesRequestSequence.current && !initialMilesController.signal.aborted) {
           setLedgerError('里程明细暂时无法加载');
         }
       })
@@ -252,10 +279,13 @@ export default function OrdersPage() {
     return () => {
       initialOrdersController.abort();
       initialMilesController.abort();
+      ordersController.current?.abort();
+      milesController.current?.abort();
+      cancelController.current?.abort();
       ordersRequestSequence.current += 1;
       milesRequestSequence.current += 1;
     };
-  }, []);
+  }, [updateMilesBalance]);
 
   const retryOrders = () => {
     void loadOrders();
@@ -269,33 +299,83 @@ export default function OrdersPage() {
     focusOrderAnchorOnClose.current = false;
     lastCancelOrderId.current = order.id;
     setCancelError(null);
+    setCancelUnconfirmed(false);
     setCancelOrder(order);
   };
 
   const handleCancel = async () => {
-    if (!cancelOrder) return;
-    setCancellingId(cancelOrder.id);
+    if (!cancelOrder || cancelInFlight.current) return;
+    cancelInFlight.current = true;
+    const orderId = cancelOrder.id;
+    setCancellingId(orderId);
     setCancelError(null);
+    // Any GET started before this mutation must not overwrite its outcome.
+    ordersRequestSequence.current += 1;
+    milesRequestSequence.current += 1;
+    ordersController.current?.abort();
+    milesController.current?.abort();
+    const controller = new AbortController();
+    cancelController.current = controller;
+    let confirmedBalance: number | undefined;
+    let failureMessage = '取消请求未完成';
     try {
-      const response = await fetch(`/api/orders/${cancelOrder.id}/cancel`, { method: 'POST' });
-      const payload = await response.json() as { data?: { new_balance?: number }; error?: string };
-      if (!response.ok || typeof payload.data?.new_balance !== 'number') {
-        throw new Error(payload.error || '取消失败');
+      if (!cancelUnconfirmed) {
+        try {
+          const { response, payload: body } = await fetchJson(`/api/orders/${orderId}/cancel`, {
+            method: 'POST', signal: controller.signal,
+          });
+          const payload = body as { data?: { new_balance?: unknown }; error?: unknown } | null;
+          const nextBalance = payload?.data?.new_balance;
+          if (!response.ok || typeof nextBalance !== 'number'
+            || !Number.isSafeInteger(nextBalance) || nextBalance < 0) {
+            throw new Error(typeof payload?.error === 'string' ? payload.error : '取消响应无效');
+          }
+          confirmedBalance = nextBalance;
+          // These effects belong to the committed mutation, even if this page
+          // is left while its detail refresh is still pending.
+          updateMilesBalance(nextBalance);
+          publishProductCatalogChanged();
+        } catch (error) {
+          failureMessage = isAbortError(error) ? '取消请求超时或连接已中断' : error instanceof Error ? error.message : '取消请求失败';
+        }
       }
-      const newBalance = payload.data.new_balance;
-      updateMilesBalance(newBalance);
-      setBalance(newBalance);
-      setOrders((current) => current.map((order) => (
-        order.id === cancelOrder.id ? { ...order, status: 'cancelled' } : order
-      )));
-      focusOrderAnchorOnClose.current = true;
-      setCancelOrder(null);
-      toast.success(`订单已取消，余额已更新为 ${newBalance.toLocaleString()} 里程`);
-      setLedgerLoading(true);
-      void loadMiles();
-    } catch (error) {
-      setCancelError(error instanceof Error ? error.message : '取消失败，请稍后重试');
+      if (controller.signal.aborted) return;
+      const nextOrders = await loadOrders();
+      if (controller.signal.aborted) return;
+      // A cancelled order confirms the commit happened; read its ledger after
+      // that observation so a timed-out POST cannot race an earlier balance.
+      const nextMiles = await loadMiles();
+      if (controller.signal.aborted) return;
+      const currentOrder = nextOrders?.find((order) => order.id === orderId);
+      if (currentOrder?.status === 'cancelled' || (confirmedBalance !== undefined && !nextOrders)) {
+        if (!nextOrders) {
+          setOrders((current) => current.map((order) => order.id === orderId ? { ...order, status: 'cancelled' } : order));
+        }
+        if (!nextMiles && confirmedBalance !== undefined) {
+          setBalance(confirmedBalance);
+          updateMilesBalance(confirmedBalance);
+        }
+        publishProductCatalogChanged();
+        focusOrderAnchorOnClose.current = true;
+        setCancelOrder(null);
+        setCancelUnconfirmed(false);
+        const newBalance = nextMiles?.balance ?? confirmedBalance;
+        toast.success(newBalance === undefined ? '已确认订单已取消，请重试加载余额明细' : `订单已取消，余额已更新为 ${newBalance.toLocaleString()} 里程`);
+      } else if (currentOrder && currentOrder.status !== 'pending') {
+        focusOrderAnchorOnClose.current = true;
+        setCancelOrder(null);
+        setCancelUnconfirmed(false);
+        toast.info('订单状态已更新，当前已不可取消');
+      } else if (currentOrder?.status === 'pending' && confirmedBalance === undefined) {
+        setCancelUnconfirmed(false);
+        setCancelError(`${failureMessage}。已核对订单仍待发货，可重试取消。`);
+      } else {
+        setCancelUnconfirmed(true);
+        setCancelError('取消结果尚未确认，暂时无法判断是否已退款。请再次核对订单和余额。');
+      }
     } finally {
+      cancelInFlight.current = false;
+      if (cancelController.current === controller) cancelController.current = null;
       setCancellingId(null);
     }
   };
@@ -443,7 +523,7 @@ export default function OrdersPage() {
             ) : ordersError ? (
               <div className="journey-surface-light border py-16 text-center" role="alert">
                 <p className="text-muted-foreground">{ordersError}</p>
-                <Button variant="outline" className="mt-4" onClick={retryOrders}>
+                <Button ref={retryOrdersRef} variant="outline" className="mt-4" onClick={retryOrders}>
                   <RefreshCw aria-hidden="true" />
                   重试订单
                 </Button>
@@ -581,7 +661,8 @@ export default function OrdersPage() {
         }}
         onOpenChangeComplete={(open) => {
           if (!open && focusOrderAnchorOnClose.current && lastCancelOrderId.current !== null) {
-            orderFocusRefs.current.get(lastCancelOrderId.current)?.focus({ preventScroll: true });
+            const target = orderFocusRefs.current.get(lastCancelOrderId.current) ?? retryOrdersRef.current;
+            target?.focus({ preventScroll: true });
             focusOrderAnchorOnClose.current = false;
           }
         }}
@@ -593,16 +674,16 @@ export default function OrdersPage() {
           <DialogHeader>
             <DialogTitle>确认取消订单</DialogTitle>
             <DialogDescription>
-              {cancelOrder && `确认取消「${cancelOrder.product_name}」？${cancelOrder.mileage_cost.toLocaleString()} 里程将退回余额。`}
+              {cancelOrder && `确认取消「${cancelOrder.product_name}」？取消成功后，将按原始兑换流水全额退回里程。`}
             </DialogDescription>
           </DialogHeader>
-          {cancelError && <p className="text-sm text-destructive" role="alert">{cancelError}，可重试。</p>}
+          {cancelError && <p className="text-sm text-destructive" role="alert">{cancelError}</p>}
           <DialogFooter>
             <Button variant="outline" disabled={cancellingId !== null} onClick={() => setCancelOrder(null)}>
               暂不取消
             </Button>
             <Button variant="destructive" disabled={cancellingId !== null} onClick={() => void handleCancel()}>
-              {cancellingId !== null ? '取消中...' : cancelError ? '重试取消' : '确认取消'}
+              {cancellingId !== null ? '处理中...' : cancelUnconfirmed ? '再次核对' : cancelError ? '重试取消' : '确认取消'}
             </Button>
           </DialogFooter>
         </DialogContent>

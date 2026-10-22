@@ -108,5 +108,31 @@ describe('useUserStore', () => {
       expect(useUserStore.getState().user).toEqual(mockUser);
       expect(useUserStore.getState().initializationStatus).toBe('authenticated');
     });
+
+    it.each([false, true])('keeps a newer refunded balance when an old user read completes (known user: %s)', async (knownUser) => {
+      if (knownUser) useUserStore.getState().setUser({ ...mockUser, miles_balance: 9500 });
+      let resolveFetch!: (response: Response) => void;
+      vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => { resolveFetch = resolve; }));
+      const initialization = useUserStore.getState().fetchUser();
+      useUserStore.getState().updateMilesBalance(10000);
+      resolveFetch({
+        ok: true,
+        json: async () => ({ data: { user: { ...mockUser, miles_balance: 9500 } } }),
+      } as Response);
+      await initialization;
+      expect(useUserStore.getState().user?.miles_balance).toBe(10000);
+      expect(useUserStore.getState().initializationStatus).toBe('authenticated');
+    });
+
+    it('accepts a fresh user read started after the last balance update', async () => {
+      useUserStore.getState().setUser(mockUser);
+      useUserStore.getState().updateMilesBalance(10000);
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { user: { ...mockUser, miles_balance: 9000 } } }),
+      } as Response);
+      await useUserStore.getState().fetchUser();
+      expect(useUserStore.getState().user?.miles_balance).toBe(9000);
+    });
   });
 });

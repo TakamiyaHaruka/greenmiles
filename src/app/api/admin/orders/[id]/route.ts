@@ -4,7 +4,7 @@ import db from '@/lib/db';
 
 function parseId(raw: string): number | null {
   const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 /** The one-way fulfilment state machine: pending → shipped → completed */
@@ -49,7 +49,14 @@ export async function PATCH(
       );
     }
 
-    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(target, orderId);
+    const changed = db.prepare('UPDATE orders SET status = ? WHERE id = ? AND status = ?')
+      .run(target, orderId, order.status);
+    if (changed.changes !== 1) {
+      return NextResponse.json(
+        { error: '订单状态已变化，请刷新后重试', code: 'ORDER_STATE_CHANGED' },
+        { status: 409 },
+      );
+    }
 
     const updated = db.prepare(`
       SELECT o.id, o.user_id, u.email, o.product_id, p.name AS product_name,

@@ -17,6 +17,8 @@ interface UserState {
 }
 
 let authRequestGeneration = 0;
+let balanceRevision = 0;
+let latestBalance = 0;
 
 export const useUserStore = create<UserState>((set) => ({
   user: null,
@@ -41,13 +43,17 @@ export const useUserStore = create<UserState>((set) => ({
     });
   },
 
-  updateMilesBalance: (balance) =>
+  updateMilesBalance: (balance) => {
+    balanceRevision += 1;
+    latestBalance = balance;
     set((state) => ({
       user: state.user ? { ...state.user, miles_balance: balance } : null,
-    })),
+    }));
+  },
 
   fetchUser: async () => {
     const requestGeneration = ++authRequestGeneration;
+    const requestedBalanceRevision = balanceRevision;
     set({ initializationStatus: 'loading' });
     try {
       const response = await fetch('/api/user');
@@ -55,11 +61,14 @@ export const useUserStore = create<UserState>((set) => ({
       if (response.ok) {
         const { data } = await response.json();
         if (requestGeneration !== authRequestGeneration) return;
-        set({
-          user: data.user,
+        set((state) => ({
+          user: balanceRevision !== requestedBalanceRevision
+            && (!state.user || state.user.id === data.user.id)
+            ? { ...data.user, miles_balance: latestBalance }
+            : data.user,
           isAuthenticated: true,
           initializationStatus: 'authenticated',
-        });
+        }));
       } else if (response.status === 401 || response.status === 404) {
         set({
           user: null,

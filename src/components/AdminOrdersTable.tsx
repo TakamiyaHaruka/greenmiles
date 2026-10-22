@@ -147,6 +147,9 @@ export function AdminOrdersTable({ onUnauthorized }: AdminOrdersTableProps) {
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error || '操作失败');
+        if (res.status === 400 || res.status === 409) {
+          await loadOrders({ preserveCurrent: true });
+        }
         return;
       }
       setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: to } : item));

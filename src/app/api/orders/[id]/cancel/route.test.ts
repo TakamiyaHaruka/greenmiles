@@ -10,7 +10,7 @@ vi.mock('@/lib/db', () => ({
       run: mockRun,
     })),
     // Returns a callable like better-sqlite3's transaction(); the route invokes it immediately
-    transaction: vi.fn((fn: () => unknown) => fn),
+    transaction: vi.fn((fn: () => unknown) => ({ immediate: fn })),
   },
 }));
 
@@ -42,6 +42,7 @@ function pendingOrder(overrides: Record<string, unknown> = {}) {
     quantity: 2,
     status: 'pending',
     miles_balance: 9000,
+    stock: 28,
     ...overrides,
   };
 }
@@ -52,6 +53,7 @@ function redemption(overrides: Record<string, unknown> = {}) {
     refundCount: 0,
     amount: -1000,
     description: '兑换「帆布袋」',
+    foreignCount: 0,
     ...overrides,
   };
 }
@@ -59,6 +61,9 @@ function redemption(overrides: Record<string, unknown> = {}) {
 describe('POST /api/orders/[id]/cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGet.mockReset();
+    mockRun.mockReset();
+    mockRun.mockReturnValue({ changes: 1 });
   });
 
   it('returns 401 when no token', async () => {
@@ -92,17 +97,18 @@ describe('POST /api/orders/[id]/cancel', () => {
     expect(response.status).toBe(403);
   });
 
-  it('returns 400 for an already-completed (voucher) order', async () => {
+  it('returns a stable conflict for an already-completed (voucher) order', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
     mockGet.mockReturnValueOnce(pendingOrder({ status: 'completed' }));
 
     const response = await POST(makeRequest(), ctx());
     const data = await response.json();
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     expect(data.error).toContain('仅待发货订单可取消');
+    expect(data.code).toBe('ORDER_NOT_CANCELLABLE');
   });
 
-  it('returns 400 when the conditional update loses the race (changes = 0)', async () => {
+  it('returns a conflict when the conditional update loses the race (changes = 0)', async () => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
     mockGet
       .mockReturnValueOnce(pendingOrder())
@@ -110,7 +116,7 @@ describe('POST /api/orders/[id]/cancel', () => {
     mockRun.mockReturnValueOnce({ changes: 0 });
 
     const response = await POST(makeRequest(), ctx());
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
   });
 
   it('refunds the original redeem amount after the product price changes', async () => {
@@ -136,6 +142,7 @@ describe('POST /api/orders/[id]/cancel', () => {
     ['missing redeem row', undefined],
     ['multiple redeem rows', redemption({ redeemCount: 2 })],
     ['an existing refund row', redemption({ refundCount: 1 })],
+    ['a transaction belonging to another user', redemption({ foreignCount: 1 })],
     ['an unsafe integer amount', redemption({ amount: Number.MIN_SAFE_INTEGER - 1 })],
   ])('fails safely without changing the order for %s', async (_label, ledger) => {
     vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
@@ -148,6 +155,28 @@ describe('POST /api/orders/[id]/cancel', () => {
 
     expect(response.status).toBe(409);
     expect(data.error).toBe('兑换账本不一致，无法安全退款');
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('returns a stable already-cancelled conflict without writing', async () => {
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
+    mockGet.mockReturnValueOnce(pendingOrder({ status: 'cancelled' }));
+    const response = await POST(makeRequest(), ctx());
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('ORDER_ALREADY_CANCELLED');
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { quantity: 0 }, { quantity: -1 }, { quantity: 1.5 },
+    { stock: Number.MAX_SAFE_INTEGER }, { stock: -1 },
+    { miles_balance: Number.MAX_SAFE_INTEGER },
+  ])('rejects unsafe numeric data %j before any write', async (overrides) => {
+    vi.mocked(getAuthUser).mockResolvedValueOnce({ userId: 1, email: 'x@x.com' });
+    mockGet.mockReturnValueOnce(pendingOrder(overrides)).mockReturnValueOnce(redemption());
+    const response = await POST(makeRequest(), ctx());
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('ORDER_DATA_INCONSISTENT');
     expect(mockRun).not.toHaveBeenCalled();
   });
 });

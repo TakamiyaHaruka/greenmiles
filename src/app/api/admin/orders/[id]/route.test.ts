@@ -78,7 +78,7 @@ describe('PATCH /api/admin/orders/[id]', () => {
 
     expect(response.status).toBe(200);
     expect(data.data.status).toBe('shipped');
-    expect(mockRun).toHaveBeenCalledWith('shipped', 7);
+    expect(mockRun).toHaveBeenCalledWith('shipped', 7, 'pending');
   });
 
   it('moves a shipped order to completed', async () => {
@@ -119,5 +119,14 @@ describe('PATCH /api/admin/orders/[id]', () => {
     const response = await PATCH(makeRequest('7', 'shipped'), { params: Promise.resolve({ id: '7' }) });
     expect(response.status).toBe(400);
     expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('returns a conflict when cancellation wins after the order was read', async () => {
+    mockGet.mockReturnValueOnce({ id: 7, status: 'pending' });
+    mockRun.mockReturnValueOnce({ changes: 0 });
+    const response = await PATCH(makeRequest('7', 'shipped'), { params: Promise.resolve({ id: '7' }) });
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('ORDER_STATE_CHANGED');
+    expect(mockRun).toHaveBeenCalledWith('shipped', 7, 'pending');
   });
 });

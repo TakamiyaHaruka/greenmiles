@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { AlertCircle, PackageCheck, RefreshCw, Truck } from 'lucide-react';
+import { formatDateTime, parseDatabaseDateTime } from '@/lib/datetime';
 
 export interface AdminOrder {
   id: number;
@@ -66,7 +67,7 @@ function isAdminOrder(value: unknown): value is AdminOrder {
     && (typeof order.voucher_code === 'string' || order.voucher_code === null)
     && (typeof order.address === 'string' || order.address === null)
     && typeof order.created_at === 'string'
-    && Number.isFinite(Date.parse(order.created_at));
+    && parseDatabaseDateTime(order.created_at) !== null;
 }
 
 function parseOrderList(payload: unknown): AdminOrder[] | null {
@@ -235,7 +236,7 @@ export function AdminOrdersTable({ onUnauthorized }: AdminOrdersTableProps) {
                   <Badge variant={status.variant}>{status.label}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-xs">
-                  {new Date(order.created_at).toLocaleString('zh-CN')}
+                  {formatDateTime(order.created_at)}
                 </TableCell>
                 <TableCell className="text-right">
                   {action ? (

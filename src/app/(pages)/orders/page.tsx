@@ -33,6 +33,7 @@ import { projectedOffsetKg } from '@/lib/carbon';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/stores/userStore';
 import { publishProductCatalogChanged } from '@/lib/productCatalogSync';
+import { formatDateTime } from '@/lib/datetime';
 
 interface Order {
   id: number;
@@ -558,7 +559,7 @@ export default function OrdersPage() {
                               {order.quantity > 1 && <span className="text-muted-foreground"> × {order.quantity}</span>}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(order.created_at).toLocaleString('zh-CN')}
+                              {formatDateTime(order.created_at)}
                             </p>
                           </div>
                         </div>
@@ -632,7 +633,7 @@ export default function OrdersPage() {
                                 {transaction.description || (transaction.type === 'grant' ? '发放' : transaction.type === 'refund' ? '退款' : '兑换')}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {new Date(transaction.created_at).toLocaleString('zh-CN')}
+                                {formatDateTime(transaction.created_at)}
                               </p>
                             </div>
                             <span className={cn('shrink-0 font-mono text-sm font-bold', transaction.amount > 0 ? 'text-accent' : 'text-destructive')}>

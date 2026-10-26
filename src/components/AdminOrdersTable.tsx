@@ -24,7 +24,7 @@ export interface AdminOrder {
   icon_type: string | null;
   status: string;
   quantity: number;
-  mileage_cost: number;
+  mileage_cost: number | null;
   voucher_code: string | null;
   address: string | null;
   created_at: string;
@@ -61,8 +61,8 @@ function isAdminOrder(value: unknown): value is AdminOrder {
     && (typeof order.icon_type === 'string' || order.icon_type === null)
     && typeof order.status === 'string'
     && Number.isSafeInteger(order.quantity)
-    && typeof order.mileage_cost === 'number'
-    && Number.isFinite(order.mileage_cost)
+    && (order.mileage_cost === null
+      || (typeof order.mileage_cost === 'number' && Number.isSafeInteger(order.mileage_cost) && order.mileage_cost > 0))
     && (typeof order.voucher_code === 'string' || order.voucher_code === null)
     && (typeof order.address === 'string' || order.address === null)
     && typeof order.created_at === 'string'
@@ -230,7 +230,7 @@ export function AdminOrdersTable({ onUnauthorized }: AdminOrdersTableProps) {
                     <span className="text-muted-foreground"> × {order.quantity}</span>
                   )}
                 </TableCell>
-                <TableCell className="text-right">{order.mileage_cost.toLocaleString()}</TableCell>
+                <TableCell className="text-right">{order.mileage_cost === null ? '金额暂不可用' : order.mileage_cost.toLocaleString()}</TableCell>
                 <TableCell>
                   <Badge variant={status.variant}>{status.label}</Badge>
                 </TableCell>

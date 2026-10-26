@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import db from '@/lib/db';
+import { ORDER_MILEAGE_COST_SQL, ORDER_REDEMPTION_JOIN_SQL } from '@/lib/orderRedemption';
 
 /** All orders across members, joined with the buyer email and product name */
 export async function GET(request: NextRequest) {
@@ -12,11 +13,12 @@ export async function GET(request: NextRequest) {
     const orders = db.prepare(`
       SELECT o.id, o.user_id, u.email, o.product_id, p.name AS product_name,
              p.category, p.icon_type, o.status, o.quantity,
-             (p.mileage_cost * o.quantity) AS mileage_cost,
+             ${ORDER_MILEAGE_COST_SQL} AS mileage_cost,
              o.voucher_code, o.address, o.created_at
       FROM orders o
       JOIN users u ON u.id = o.user_id
       JOIN products p ON p.id = o.product_id
+      ${ORDER_REDEMPTION_JOIN_SQL}
       ORDER BY o.created_at DESC, o.id DESC
     `).all();
 

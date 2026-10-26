@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import db from '@/lib/db';
+import { ORDER_MILEAGE_COST_SQL, ORDER_REDEMPTION_JOIN_SQL } from '@/lib/orderRedemption';
 import { z } from 'zod';
 import crypto from 'crypto';
 
@@ -150,9 +151,10 @@ export async function GET(request: NextRequest) {
              COALESCE(p.project_name, '') AS project_name,
              COALESCE(p.project_standard, '') AS project_standard,
              COALESCE(p.project_vintage, '') AS project_vintage,
-             (p.mileage_cost * o.quantity) AS mileage_cost
+             ${ORDER_MILEAGE_COST_SQL} AS mileage_cost
       FROM orders o
       JOIN products p ON o.product_id = p.id
+      ${ORDER_REDEMPTION_JOIN_SQL}
       WHERE o.user_id = ?
       ORDER BY o.created_at DESC
     `).all(payload.userId);

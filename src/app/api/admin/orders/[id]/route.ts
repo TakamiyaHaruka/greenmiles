@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import db from '@/lib/db';
+import { ORDER_MILEAGE_COST_SQL, ORDER_REDEMPTION_JOIN_SQL } from '@/lib/orderRedemption';
 
 function parseId(raw: string): number | null {
   const id = Number(raw);
@@ -61,11 +62,12 @@ export async function PATCH(
     const updated = db.prepare(`
       SELECT o.id, o.user_id, u.email, o.product_id, p.name AS product_name,
              p.category, p.icon_type, o.status, o.quantity,
-             (p.mileage_cost * o.quantity) AS mileage_cost,
+             ${ORDER_MILEAGE_COST_SQL} AS mileage_cost,
              o.voucher_code, o.address, o.created_at
       FROM orders o
       JOIN users u ON u.id = o.user_id
       JOIN products p ON p.id = o.product_id
+      ${ORDER_REDEMPTION_JOIN_SQL}
       WHERE o.id = ?
     `).get(orderId);
 

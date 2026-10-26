@@ -39,7 +39,7 @@ interface Order {
   product_name: string;
   icon_type: string;
   category: string;
-  mileage_cost: number;
+  mileage_cost: number | null;
   quantity: number;
   status: string;
   voucher_code: string;
@@ -107,7 +107,8 @@ function isOrder(value: unknown): value is Order {
     && typeof order.product_name === 'string'
     && typeof order.icon_type === 'string'
     && typeof order.category === 'string'
-    && isFiniteNumber(order.mileage_cost) && order.mileage_cost >= 0
+    && (order.mileage_cost === null
+      || (typeof order.mileage_cost === 'number' && Number.isSafeInteger(order.mileage_cost) && order.mileage_cost > 0))
     && Number.isInteger(order.quantity) && (order.quantity ?? 0) > 0
     && typeof order.status === 'string'
     && typeof order.voucher_code === 'string'
@@ -429,7 +430,7 @@ export default function OrdersPage() {
                 subtitle="GreenMiles 兑换券"
                 rows={[
                   { label: '券码', value: order.voucher_code },
-                  { label: '消耗里程', value: `${order.mileage_cost.toLocaleString()} 里程` },
+                  { label: '消耗里程', value: order.mileage_cost === null ? '金额暂不可用' : `${order.mileage_cost.toLocaleString()} 里程` },
                 ]}
                 serial={order.voucher_code}
                 qrValue={order.voucher_code}
@@ -563,7 +564,7 @@ export default function OrdersPage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                           <span className="mr-auto whitespace-nowrap text-sm font-bold text-accent sm:mr-1">
-                            -{order.mileage_cost.toLocaleString()} 里程
+                            {order.mileage_cost === null ? '金额暂不可用' : `-${order.mileage_cost.toLocaleString()} 里程`}
                           </span>
                           {order.status !== 'cancelled' && (
                             <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
